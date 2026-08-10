@@ -2264,5 +2264,5 @@ async function telegramRequest(
       }
     );
 
-  return response.json();
-        }
+    return response.json();
+}
