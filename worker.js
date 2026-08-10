@@ -16,7 +16,7 @@ export default {
     try {
 
       // =========================
-      // TEST
+      // DATABASE TEST
       // =========================
 
       if (url.pathname === "/api/test") {
@@ -33,6 +33,7 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // USER
       // =========================
@@ -44,8 +45,6 @@ export default {
         const body = await request.json();
 
         const id = Number(body.id);
-        const username = body.username || null;
-        const firstName = body.first_name || null;
 
         if (!Number.isSafeInteger(id) || id <= 0) {
           return json({
@@ -53,6 +52,9 @@ export default {
             error: "Некорректный Telegram ID"
           }, headers, 400);
         }
+
+        const username = body.username || null;
+        const firstName = body.first_name || null;
 
         await env.DB
           .prepare(`
@@ -87,6 +89,7 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // COINS
       // =========================
@@ -101,7 +104,7 @@ export default {
 
         const user = await env.DB
           .prepare(`
-            SELECT id, coins
+            SELECT coins
             FROM users
             WHERE id = ?
           `)
@@ -120,6 +123,7 @@ export default {
           coins: Number(user.coins || 0)
         }, headers);
       }
+
 
       // =========================
       // GIFTS
@@ -148,6 +152,7 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // INVENTORY
       // =========================
@@ -169,6 +174,7 @@ export default {
               gifts.emoji,
               gifts.price,
               gifts.description,
+              inventory.source,
               inventory.created_at
             FROM inventory
             JOIN gifts
@@ -184,6 +190,7 @@ export default {
           inventory: result.results
         }, headers);
       }
+
 
       // =========================
       // TASKS
@@ -207,31 +214,16 @@ export default {
               tasks.url,
               tasks.reward,
               tasks.max_completions,
-              tasks.created_at,
-
               CASE
                 WHEN task_completions.id IS NOT NULL
                 THEN 1
                 ELSE 0
               END AS completed
-
             FROM tasks
-
             LEFT JOIN task_completions
               ON task_completions.task_id = tasks.id
               AND task_completions.user_id = ?
-
             WHERE tasks.is_active = 1
-
-            AND (
-              tasks.max_completions IS NULL
-              OR (
-                SELECT COUNT(*)
-                FROM task_completions tc
-                WHERE tc.task_id = tasks.id
-              ) < tasks.max_completions
-            )
-
             ORDER BY tasks.id DESC
           `)
           .bind(userId)
@@ -242,6 +234,7 @@ export default {
           tasks: result.results
         }, headers);
       }
+
 
       // =========================
       // COMPLETE TASK
@@ -261,26 +254,19 @@ export default {
             SELECT
               id,
               reward,
-              max_completions,
-              is_active
+              is_active,
+              max_completions
             FROM tasks
             WHERE id = ?
           `)
           .bind(taskId)
           .first();
 
-        if (!task) {
+        if (!task || !task.is_active) {
           return json({
             ok: false,
-            error: "Задание не найдено"
+            error: "Задание недоступно"
           }, headers, 404);
-        }
-
-        if (!task.is_active) {
-          return json({
-            ok: false,
-            error: "Задание отключено"
-          }, headers, 400);
         }
 
         const completed = await env.DB
@@ -289,7 +275,6 @@ export default {
             FROM task_completions
             WHERE task_id = ?
             AND user_id = ?
-            LIMIT 1
           `)
           .bind(taskId, userId)
           .first();
@@ -303,7 +288,7 @@ export default {
 
         const reward = Math.max(
           0,
-          Number(task.reward) || 0
+          Number(task.reward || 0)
         );
 
         await env.DB
@@ -324,6 +309,15 @@ export default {
           .bind(reward, userId)
           .run();
 
+        await env.DB
+          .prepare(`
+            INSERT INTO transactions
+              (user_id, type, amount, description)
+            VALUES (?, 'task_reward', ?, 'Награда за задание')
+          `)
+          .bind(userId, reward)
+          .run();
+
         const user = await env.DB
           .prepare(`
             SELECT coins
@@ -340,6 +334,7 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // CASES
       // =========================
@@ -355,12 +350,11 @@ export default {
               name,
               emoji,
               description,
-              price_coins,
-              price_stars,
+              cost_coins,
               premium
             FROM cases
-            WHERE is_active = 1
-            ORDER BY premium ASC, price_coins ASC
+            WHERE active = 1
+            ORDER BY id ASC
           `)
           .all();
 
@@ -370,12 +364,13 @@ export default {
         }, headers);
       }
 
+
       // =========================
-      // CASE REWARDS
+      // CASE CONTENT
       // =========================
 
       if (
-        url.pathname === "/api/cases/rewards" &&
+        url.pathname === "/api/case-items" &&
         request.method === "GET"
       ) {
         const caseId = Number(
@@ -385,28 +380,30 @@ export default {
         const result = await env.DB
           .prepare(`
             SELECT
-              id,
-              case_id,
-              name,
-              emoji,
-              rarity,
-              value_coins
-            FROM case_rewards
-            WHERE case_id = ?
-            AND is_active = 1
-            ORDER BY value_coins ASC
+              gifts.id,
+              gifts.name,
+              gifts.emoji,
+              gifts.price,
+              gifts.description,
+              case_items.chance
+            FROM case_items
+            JOIN gifts
+              ON gifts.id = case_items.gift_id
+            WHERE case_items.case_id = ?
+            ORDER BY case_items.chance DESC
           `)
           .bind(caseId)
           .all();
 
         return json({
           ok: true,
-          rewards: result.results
+          items: result.results
         }, headers);
       }
 
+
       // =========================
-      // OPEN CASE
+      // OPEN COIN CASE
       // =========================
 
       if (
@@ -417,57 +414,38 @@ export default {
 
         const userId = Number(body.user_id);
         const caseId = Number(body.case_id);
-        const rewardId = Number(body.reward_id);
-
-        if (
-          !Number.isSafeInteger(userId) ||
-          !Number.isSafeInteger(caseId) ||
-          !Number.isSafeInteger(rewardId)
-        ) {
-          return json({
-            ok: false,
-            error: "Некорректные данные"
-          }, headers, 400);
-        }
 
         const caseData = await env.DB
           .prepare(`
-            SELECT *
+            SELECT
+              id,
+              name,
+              cost_coins,
+              premium,
+              active
             FROM cases
             WHERE id = ?
-            AND is_active = 1
           `)
           .bind(caseId)
           .first();
 
-        if (!caseData) {
+        if (!caseData || !caseData.active) {
           return json({
             ok: false,
-            error: "Кейс не найден"
+            error: "Кейс недоступен"
           }, headers, 404);
         }
 
-        const reward = await env.DB
-          .prepare(`
-            SELECT *
-            FROM case_rewards
-            WHERE id = ?
-            AND case_id = ?
-            AND is_active = 1
-          `)
-          .bind(rewardId, caseId)
-          .first();
-
-        if (!reward) {
+        if (Number(caseData.premium) === 1) {
           return json({
             ok: false,
-            error: "Награда не принадлежит этому кейсу"
+            error: "Этот набор открывается через Premium-покупку"
           }, headers, 400);
         }
 
         const user = await env.DB
           .prepare(`
-            SELECT id, coins
+            SELECT coins
             FROM users
             WHERE id = ?
           `)
@@ -481,22 +459,8 @@ export default {
           }, headers, 404);
         }
 
-        // Premium Stars пока только подготовлен.
-        // Реальную оплату подключаем через Telegram Bot Payments.
-        if (Number(caseData.premium) === 1) {
-          return json({
-            ok: false,
-            error: "Premium Case требует оплату Telegram Stars"
-          }, headers, 402);
-        }
-
-        const price = Number(
-          caseData.price_coins || 0
-        );
-
-        const coins = Number(
-          user.coins || 0
-        );
+        const coins = Number(user.coins || 0);
+        const price = Number(caseData.cost_coins || 0);
 
         if (coins < price) {
           return json({
@@ -505,72 +469,105 @@ export default {
           }, headers, 400);
         }
 
-        // Списываем Coins
+        const items = await env.DB
+          .prepare(`
+            SELECT
+              gift_id,
+              chance
+            FROM case_items
+            WHERE case_id = ?
+          `)
+          .bind(caseId)
+          .all();
+
+        if (!items.results.length) {
+          return json({
+            ok: false,
+            error: "В кейсе нет наград"
+          }, headers, 400);
+        }
+
+        const total = items.results.reduce(
+          (sum, item) =>
+            sum + Number(item.chance || 0),
+          0
+        );
+
+        let random = Math.random() * total;
+        let selected = null;
+
+        for (const item of items.results) {
+          random -= Number(item.chance || 0);
+
+          if (random <= 0) {
+            selected = item;
+            break;
+          }
+        }
+
+        if (!selected) {
+          selected = items.results[
+            items.results.length - 1
+          ];
+        }
+
         await env.DB
           .prepare(`
             UPDATE users
             SET coins = coins - ?
             WHERE id = ?
-            AND coins >= ?
           `)
-          .bind(price, userId, price)
+          .bind(price, userId)
           .run();
-
-        // Создаём подарок в inventory.
-        // Используем существующую таблицу gifts.
-        let gift = await env.DB
-          .prepare(`
-            SELECT id
-            FROM gifts
-            WHERE name = ?
-            LIMIT 1
-          `)
-          .bind(reward.name)
-          .first();
-
-        if (!gift) {
-          await env.DB
-            .prepare(`
-              INSERT INTO gifts
-                (name, emoji, price, description)
-              VALUES (?, ?, ?, ?)
-            `)
-            .bind(
-              reward.name,
-              reward.emoji,
-              reward.value_coins,
-              "Награда из кейса"
-            )
-            .run();
-
-          gift = await env.DB
-            .prepare(`
-              SELECT id
-              FROM gifts
-              WHERE name = ?
-              LIMIT 1
-            `)
-            .bind(reward.name)
-            .first();
-        }
 
         await env.DB
           .prepare(`
             INSERT INTO inventory
-              (user_id, gift_id)
-            VALUES (?, ?)
+              (user_id, gift_id, source)
+            VALUES (?, ?, 'coin_case')
           `)
-          .bind(userId, gift.id)
+          .bind(userId, selected.gift_id)
           .run();
 
         await env.DB
           .prepare(`
             INSERT INTO case_opens
-              (user_id, case_id, reward_id)
+              (user_id, case_id, gift_id)
             VALUES (?, ?, ?)
           `)
-          .bind(userId, caseId, rewardId)
+          .bind(
+            userId,
+            caseId,
+            selected.gift_id
+          )
           .run();
+
+        await env.DB
+          .prepare(`
+            INSERT INTO transactions
+              (user_id, type, amount, description)
+            VALUES (?, 'case_open', ?, ?)
+          `)
+          .bind(
+            userId,
+            -price,
+            `Открытие кейса #${caseId}`
+          )
+          .run();
+
+        const gift = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              emoji,
+              price,
+              description
+            FROM gifts
+            WHERE id = ?
+          `)
+          .bind(selected.gift_id)
+          .first();
 
         const updatedUser = await env.DB
           .prepare(`
@@ -583,170 +580,153 @@ export default {
 
         return json({
           ok: true,
-          reward: {
-            id: reward.id,
-            name: reward.name,
-            emoji: reward.emoji,
-            rarity: reward.rarity,
-            value_coins: reward.value_coins
-          },
+          gift,
           coins: Number(updatedUser.coins || 0)
         }, headers);
       }
 
+
       // =========================
-      // RATING
+      // REFERRAL INFO
       // =========================
 
       if (
-        url.pathname === "/api/rating" &&
+        url.pathname === "/api/referrals" &&
         request.method === "GET"
       ) {
-        const type =
-          url.searchParams.get("type") || "coins";
+        const userId = Number(
+          url.searchParams.get("user_id")
+        );
 
-        let sql = "";
-
-        if (type === "coins") {
-          sql = `
-            SELECT
-              id,
-              username,
-              first_name,
-              coins AS value
-            FROM users
-            ORDER BY coins DESC
-            LIMIT 50
-          `;
-        }
-
-        else if (type === "gifts") {
-          sql = `
-            SELECT
-              users.id,
-              users.username,
-              users.first_name,
-              COUNT(inventory.id) AS value
-            FROM users
-            LEFT JOIN inventory
-              ON inventory.user_id = users.id
-            GROUP BY users.id
-            ORDER BY value DESC
-            LIMIT 50
-          `;
-        }
-
-        else if (type === "tasks") {
-          sql = `
-            SELECT
-              users.id,
-              users.username,
-              users.first_name,
-              COUNT(task_completions.id) AS value
-            FROM users
-            LEFT JOIN task_completions
-              ON task_completions.user_id = users.id
-            GROUP BY users.id
-            ORDER BY value DESC
-            LIMIT 50
-          `;
-        }
-
-        else if (type === "referrals") {
-          sql = `
-            SELECT
-              users.id,
-              users.username,
-              users.first_name,
-              COUNT(referrals.id) AS value
-            FROM users
-            LEFT JOIN referrals
-              ON referrals.referrer_id = users.id
-            GROUP BY users.id
-            ORDER BY value DESC
-            LIMIT 50
-          `;
-        }
-
-        else {
-          return json({
-            ok: false,
-            error: "Неизвестный рейтинг"
-          }, headers, 400);
-        }
-
-        const result = await env.DB
-          .prepare(sql)
-          .all();
-
-        return json({
-          ok: true,
-          type,
-          rating: result.results
-        }, headers);
-      }
-
-      // =========================
-      // REFERRAL
-      // =========================
-
-      if (
-        url.pathname === "/api/referral" &&
-        request.method === "POST"
-      ) {
-        const body = await request.json();
-
-        const userId = Number(body.user_id);
-        const referrerId = Number(body.referrer_id);
-
-        if (
-          userId <= 0 ||
-          referrerId <= 0 ||
-          userId === referrerId
-        ) {
-          return json({
-            ok: false,
-            error: "Некорректные данные"
-          }, headers, 400);
-        }
-
-        const existing = await env.DB
+        const count = await env.DB
           .prepare(`
-            SELECT id
+            SELECT COUNT(*) AS count
             FROM referrals
-            WHERE user_id = ?
+            WHERE referrer_id = ?
           `)
           .bind(userId)
           .first();
 
-        if (existing) {
-          return json({
-            ok: false,
-            error: "Реферал уже установлен"
-          }, headers, 409);
-        }
-
-        await env.DB
+        const active = await env.DB
           .prepare(`
-            INSERT INTO referrals
-              (user_id, referrer_id)
-            VALUES (?, ?)
+            SELECT COUNT(*) AS count
+            FROM referrals r
+            JOIN task_completions tc
+              ON tc.user_id = r.user_id
+            WHERE r.referrer_id = ?
           `)
-          .bind(userId, referrerId)
-          .run();
+          .bind(userId)
+          .first();
 
         return json({
-          ok: true
+          ok: true,
+          referrals: Number(count.count || 0),
+          active: Number(active.count || 0),
+          link:
+            "https://t.me/VldstxCase_bot?start=ref_" +
+            userId
         }, headers);
       }
 
+
       // =========================
-      // STATIC
+      // REFERRAL RANK
+      // =========================
+
+      if (
+        url.pathname === "/api/referral-rank" &&
+        request.method === "GET"
+      ) {
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              users.id,
+              users.username,
+              users.first_name,
+              COUNT(referrals.id) AS referrals
+            FROM users
+            LEFT JOIN referrals
+              ON referrals.referrer_id = users.id
+            GROUP BY users.id
+            ORDER BY referrals DESC
+            LIMIT 100
+          `)
+          .all();
+
+        return json({
+          ok: true,
+          ranking: result.results
+        }, headers);
+      }
+
+
+      // =========================
+      // COINS RANK
+      // =========================
+
+      if (
+        url.pathname === "/api/coins-rank" &&
+        request.method === "GET"
+      ) {
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              username,
+              first_name,
+              coins
+            FROM users
+            ORDER BY coins DESC
+            LIMIT 100
+          `)
+          .all();
+
+        return json({
+          ok: true,
+          ranking: result.results
+        }, headers);
+      }
+
+
+      // =========================
+      // GIFTS RANK
+      // =========================
+
+      if (
+        url.pathname === "/api/gifts-rank" &&
+        request.method === "GET"
+      ) {
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              users.id,
+              users.username,
+              users.first_name,
+              COUNT(inventory.id) AS gifts
+            FROM users
+            LEFT JOIN inventory
+              ON inventory.user_id = users.id
+            GROUP BY users.id
+            ORDER BY gifts DESC
+            LIMIT 100
+          `)
+          .all();
+
+        return json({
+          ok: true,
+          ranking: result.results
+        }, headers);
+      }
+
+
+      // =========================
+      // STATIC FILES
       // =========================
 
       return env.ASSETS.fetch(request);
 
     } catch (error) {
+
       console.error(error);
 
       return json({
@@ -758,12 +738,16 @@ export default {
   }
 };
 
+
 function json(data, headers, status = 200) {
   return new Response(
     JSON.stringify(data),
     {
       status,
-      headers
+      headers: {
+        ...headers,
+        "Cache-Control": "no-store"
+      }
     }
   );
-                   }
+    }
