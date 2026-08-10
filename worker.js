@@ -198,5 +198,7 @@ export default {
       );
     }
 
-    // Статические файлы Mini App
+        // Статические файлы Mini App
     return env.ASSETS.fetch(request);
+  }
+};
