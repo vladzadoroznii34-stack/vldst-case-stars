@@ -2,16 +2,19 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>VLDST CASE x STARS</title>
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+
   <div class="app">
 
-    <header>
+    <header class="topbar">
       <div>
         <div class="logo">VLDST</div>
         <div class="subtitle">CASE x STARS</div>
@@ -24,168 +27,117 @@
 
     <main>
 
+      <!-- Главная -->
       <section id="home" class="page active">
         <div class="hero">
-          <div class="hero-title">🎁 VLDST CASE</div>
+          <div class="hero-title">VLDST CASE</div>
           <div class="hero-text">
-            Собирай цифровые подарки и пополняй свою коллекцию
+            Покупай коллекционные подарки за Stars
           </div>
+          <button class="primary" onclick="showPage('shop')">
+            Открыть каталог
+          </button>
         </div>
 
-        <h2>🔥 Популярное</h2>
-
-        <div class="cards">
-
-          <div class="gift-card">
-            <div class="gift-icon">🎁</div>
-            <div class="gift-name">Mystery Gift</div>
-            <div class="gift-price">⭐ 25</div>
-            <button onclick="buyGift('Mystery Gift', 25)">
-              Купить
-            </button>
-          </div>
-
-          <div class="gift-card">
-            <div class="gift-icon">💎</div>
-            <div class="gift-name">Diamond Gift</div>
-            <div class="gift-price">⭐ 50</div>
-            <button onclick="buyGift('Diamond Gift', 50)">
-              Купить
-            </button>
-          </div>
-
-          <div class="gift-card">
-            <div class="gift-icon">👑</div>
-            <div class="gift-name">Royal Gift</div>
-            <div class="gift-price">⭐ 100</div>
-            <button onclick="buyGift('Royal Gift', 100)">
-              Купить
-            </button>
-          </div>
-
-        </div>
+        <h2>Популярные подарки</h2>
+        <div id="popular" class="grid"></div>
       </section>
 
-      <section id="gifts" class="page">
+      <!-- Магазин -->
+      <section id="shop" class="page">
         <h1>🎁 Подарки</h1>
-
-        <div class="cards">
-
-          <div class="gift-card">
-            <div class="gift-icon">🌟</div>
-            <div class="gift-name">Star Gift</div>
-            <div class="gift-price">⭐ 10</div>
-            <button onclick="buyGift('Star Gift', 10)">
-              Купить
-            </button>
-          </div>
-
-          <div class="gift-card">
-            <div class="gift-icon">💎</div>
-            <div class="gift-name">Diamond</div>
-            <div class="gift-price">⭐ 50</div>
-            <button onclick="buyGift('Diamond', 50)">
-              Купить
-            </button>
-          </div>
-
-          <div class="gift-card">
-            <div class="gift-icon">👑</div>
-            <div class="gift-name">Royal</div>
-            <div class="gift-price">⭐ 100</div>
-            <button onclick="buyGift('Royal', 100)">
-              Купить
-            </button>
-          </div>
-
-        </div>
+        <div id="gifts" class="grid"></div>
       </section>
 
+      <!-- Инвентарь -->
       <section id="inventory" class="page">
         <h1>🎒 Инвентарь</h1>
-        <div id="inventoryList" class="inventory">
-          <div class="empty">
-            Инвентарь пока пуст
-          </div>
-        </div>
+        <div id="inventoryList" class="grid"></div>
       </section>
 
-      <section id="shop" class="page">
-        <h1>🛒 Магазин</h1>
-
-        <div class="info-card">
-          <div class="info-icon">⭐</div>
-          <div>
-            <b>Stars</b>
-            <p>Покупай цифровые товары прямо в Telegram.</p>
-          </div>
-        </div>
-
-        <button class="big-button" onclick="showTelegramInfo()">
-          ⭐ Оплата Stars
-        </button>
-      </section>
-
+      <!-- Профиль -->
       <section id="profile" class="page">
         <h1>👤 Профиль</h1>
 
         <div class="profile-card">
-          <div class="avatar" id="avatar">👤</div>
+          <div class="avatar" id="avatar">?</div>
 
           <div>
             <div id="username">Пользователь</div>
-            <small>ID: <span id="userId">—</span></small>
+            <small id="telegramId"></small>
           </div>
         </div>
 
         <div class="stats">
           <div>
+            <span>⭐</span>
             <b id="profileBalance">0</b>
-            <span>⭐ Stars</span>
+            <small>Stars</small>
           </div>
 
           <div>
-            <b id="giftCount">0</b>
-            <span>🎁 Подарков</span>
+            <span>🎁</span>
+            <b id="inventoryCount">0</b>
+            <small>Подарков</small>
           </div>
         </div>
+      </section>
 
-        <button class="big-button" onclick="showReferrals()">
-          👥 Реферальная система
-        </button>
+      <!-- Рефералы -->
+      <section id="referrals" class="page">
+        <h1>👥 Рефералы</h1>
+
+        <div class="ref-card">
+          <div class="ref-icon">👥</div>
+          <h2>Приглашай друзей</h2>
+          <p>
+            Поделись своей ссылкой и следи за приглашёнными пользователями.
+          </p>
+
+          <div class="ref-link" id="refLink">
+            Загрузка...
+          </div>
+
+          <button class="primary" onclick="copyReferral()">
+            Скопировать ссылку
+          </button>
+        </div>
       </section>
 
     </main>
 
-    <nav>
-      <button onclick="openPage('home')">
-        🏠
-        <span>Главная</span>
+    <nav class="bottom-nav">
+
+      <button onclick="showPage('home')" data-page="home">
+        <span>⌂</span>
+        <small>Главная</small>
       </button>
 
-      <button onclick="openPage('gifts')">
-        🎁
-        <span>Подарки</span>
+      <button onclick="showPage('shop')" data-page="shop">
+        <span>🎁</span>
+        <small>Подарки</small>
       </button>
 
-      <button onclick="openPage('inventory')">
-        🎒
-        <span>Инвентарь</span>
+      <button onclick="showPage('inventory')" data-page="inventory">
+        <span>🎒</span>
+        <small>Инвентарь</small>
       </button>
 
-      <button onclick="openPage('shop')">
-        🛒
-        <span>Магазин</span>
+      <button onclick="showPage('referrals')" data-page="referrals">
+        <span>👥</span>
+        <small>Рефералы</small>
       </button>
 
-      <button onclick="openPage('profile')">
-        👤
-        <span>Профиль</span>
+      <button onclick="showPage('profile')" data-page="profile">
+        <span>👤</span>
+        <small>Профиль</small>
       </button>
+
     </nav>
 
   </div>
 
   <script src="app.js"></script>
+
 </body>
-  </html>
+                     </html>
