@@ -20,320 +20,386 @@
 
 <div class="app">
 
-  <header class="topbar">
+<header class="topbar">
+
+  <div>
+    <div class="logo">VLDST</div>
+    <div class="subtitle">CASE</div>
+  </div>
+
+  <div class="balances">
+
+    <div class="balance">
+      ⭐ <span id="balance">0</span>
+    </div>
+
+    <div class="coin-balance">
+      🪙 <span id="coins">0</span>
+    </div>
+
+  </div>
+
+</header>
+
+
+<main>
+
+<!-- HOME -->
+
+<section id="home" class="page active">
+
+  <div class="hero">
+
+    <div class="hero-title">
+      VLDST CASE
+    </div>
+
+    <div class="hero-text">
+      Выполняй задания, получай Coins и открывай кейсы.
+    </div>
+
+    <button
+      class="primary"
+      onclick="showPage('cases')"
+    >
+      🎁 Открыть кейсы
+    </button>
+
+  </div>
+
+
+  <h2>
+    Популярные кейсы
+  </h2>
+
+  <div
+    id="popularCases"
+    class="grid"
+  ></div>
+
+</section>
+
+
+<!-- CASES -->
+
+<section id="cases" class="page">
+
+  <h1>🎁 Кейсы</h1>
+
+  <div
+    id="casesList"
+    class="grid"
+  ></div>
+
+</section>
+
+
+<!-- CASE VIEW -->
+
+<section id="caseView" class="page">
+
+  <button
+    class="back"
+    onclick="showPage('cases')"
+  >
+    ← Назад
+  </button>
+
+  <div
+    id="caseDetails"
+    class="case-details"
+  ></div>
+
+</section>
+
+
+<!-- TASKS -->
+
+<section id="tasks" class="page">
+
+  <h1>🪙 Задания</h1>
+
+  <div class="coin-card">
+
+    <span>Твои Coins</span>
+
+    <strong id="tasksCoins">
+      0
+    </strong>
+
+  </div>
+
+  <div
+    id="tasksList"
+    class="list"
+  ></div>
+
+</section>
+
+
+<!-- INVENTORY -->
+
+<section id="inventory" class="page">
+
+  <h1>🎒 Инвентарь</h1>
+
+  <div
+    id="inventoryList"
+    class="grid"
+  ></div>
+
+</section>
+
+
+<!-- REFERRALS -->
+
+<section id="referrals" class="page">
+
+  <h1>👥 Рефералы</h1>
+
+  <div class="ref-card">
+
+    <div class="ref-icon">
+      👥
+    </div>
+
+    <h2>
+      Приглашай друзей
+    </h2>
+
+    <p>
+      Приглашай пользователей и получай бонусы за активных участников.
+    </p>
+
+    <div class="ref-stat">
+
+      <span>
+        Приглашено
+      </span>
+
+      <strong id="refCount">
+        0
+      </strong>
+
+    </div>
+
+    <div class="ref-stat">
+
+      <span>
+        Активных
+      </span>
+
+      <strong id="refActive">
+        0
+      </strong>
+
+    </div>
+
+    <div
+      id="refLink"
+      class="ref-link"
+    >
+      Загрузка...
+    </div>
+
+    <button
+      class="primary"
+      onclick="copyReferral()"
+    >
+      📋 Скопировать ссылку
+    </button>
+
+  </div>
+
+</section>
+
+
+<!-- RANKING -->
+
+<section id="ranking" class="page">
+
+  <h1>🏆 Рейтинг</h1>
+
+  <div class="tabs">
+
+    <button
+      onclick="loadRanking('coins')"
+    >
+      🪙 Coins
+    </button>
+
+    <button
+      onclick="loadRanking('referrals')"
+    >
+      👥 Рефералы
+    </button>
+
+    <button
+      onclick="loadRanking('gifts')"
+    >
+      🎁 Подарки
+    </button>
+
+  </div>
+
+  <div
+    id="rankingList"
+    class="ranking-list"
+  ></div>
+
+</section>
+
+
+<!-- PROFILE -->
+
+<section id="profile" class="page">
+
+  <h1>👤 Профиль</h1>
+
+  <div class="profile-card">
+
+    <div
+      class="avatar"
+      id="avatar"
+    >
+      ?
+    </div>
 
     <div>
-      <div class="logo">VLDST</div>
-      <div class="subtitle">CASE x STARS</div>
-    </div>
 
-    <div class="balances">
-
-      <div class="balance">
-        ⭐ <span id="balance">0</span>
+      <div id="username">
+        Пользователь
       </div>
 
-      <div class="balance coin-balance">
-        🪙 <span id="coins">0</span>
-      </div>
+      <small id="telegramId"></small>
 
     </div>
 
-  </header>
+  </div>
 
-  <main>
 
-    <!-- HOME -->
+  <div class="stats">
 
-    <section id="home" class="page active">
+    <div>
 
-      <div class="hero">
+      <span>🪙</span>
 
-        <div class="hero-title">
-          VLDST CASE
-        </div>
+      <b id="profileCoins">
+        0
+      </b>
 
-        <div class="hero-text">
-          Выполняй задания, получай Coins
-          и открывай коллекционные кейсы.
-        </div>
+      <small>
+        Coins
+      </small>
 
-        <button
-          class="primary"
-          onclick="showPage('cases')"
-        >
-          Открыть кейсы
-        </button>
+    </div>
 
-      </div>
 
-      <h2>Популярные кейсы</h2>
+    <div>
 
-      <div
-        id="popularCases"
-        class="grid"
-      ></div>
+      <span>🎁</span>
 
-    </section>
+      <b id="inventoryCount">
+        0
+      </b>
 
+      <small>
+        Подарков
+      </small>
 
-    <!-- CASES -->
+    </div>
 
-    <section id="cases" class="page">
 
-      <h1>📦 Кейсы</h1>
+    <div>
 
-      <div
-        id="casesList"
-        class="grid"
-      ></div>
+      <span>👥</span>
 
-    </section>
+      <b id="profileReferrals">
+        0
+      </b>
 
+      <small>
+        Рефералов
+      </small>
 
-    <!-- CASE -->
+    </div>
 
-    <section id="caseView" class="page">
+  </div>
 
-      <button
-        class="back"
-        onclick="showPage('cases')"
-      >
-        ← Назад
-      </button>
+</section>
 
-      <div
-        id="caseInfo"
-        class="case-info"
-      ></div>
+</main>
 
-      <h2>🎁 Выбери награду</h2>
 
-      <div
-        id="caseRewards"
-        class="grid"
-      ></div>
+<nav class="bottom-nav">
 
-    </section>
+  <button
+    onclick="showPage('home')"
+    data-page="home"
+  >
+    <span>⌂</span>
+    <small>Главная</small>
+  </button>
 
 
-    <!-- TASKS -->
+  <button
+    onclick="showPage('cases')"
+    data-page="cases"
+  >
+    <span>🎁</span>
+    <small>Кейсы</small>
+  </button>
 
-    <section id="tasks" class="page">
 
-      <h1>🎯 Задания</h1>
+  <button
+    onclick="showPage('tasks')"
+    data-page="tasks"
+  >
+    <span>🪙</span>
+    <small>Задания</small>
+  </button>
 
-      <div class="coin-box">
-        🪙 Твои Coins:
-        <b id="tasksCoins">0</b>
-      </div>
 
-      <div
-        id="tasksList"
-        class="grid"
-      ></div>
+  <button
+    onclick="showPage('inventory')"
+    data-page="inventory"
+  >
+    <span>🎒</span>
+    <small>Инвентарь</small>
+  </button>
 
-    </section>
 
-
-    <!-- INVENTORY -->
-
-    <section id="inventory" class="page">
-
-      <h1>🎒 Инвентарь</h1>
-
-      <div
-        id="inventoryList"
-        class="grid"
-      ></div>
-
-    </section>
-
-
-    <!-- RATING -->
-
-    <section id="rating" class="page">
-
-      <h1>🏆 Рейтинг</h1>
-
-      <div class="rating-tabs">
-
-        <button onclick="loadRating('coins')">
-          🪙 Coins
-        </button>
-
-        <button onclick="loadRating('gifts')">
-          🎁 Подарки
-        </button>
-
-        <button onclick="loadRating('tasks')">
-          🎯 Задания
-        </button>
-
-        <button onclick="loadRating('referrals')">
-          👥 Рефералы
-        </button>
-
-      </div>
-
-      <div
-        id="ratingList"
-        class="rating-list"
-      ></div>
-
-    </section>
-
-
-    <!-- REFERRALS -->
-
-    <section id="referrals" class="page">
-
-      <h1>👥 Рефералы</h1>
-
-      <div class="ref-card">
-
-        <div class="ref-icon">
-          👥
-        </div>
-
-        <h2>
-          Приглашай друзей
-        </h2>
-
-        <p>
-          У каждого игрока своя
-          реферальная ссылка.
-        </p>
-
-        <div
-          class="ref-link"
-          id="refLink"
-        >
-          Загрузка...
-        </div>
-
-        <button
-          class="primary"
-          onclick="copyReferral()"
-        >
-          Скопировать ссылку
-        </button>
-
-      </div>
-
-    </section>
-
-
-    <!-- PROFILE -->
-
-    <section id="profile" class="page">
-
-      <h1>👤 Профиль</h1>
-
-      <div class="profile-card">
-
-        <div
-          class="avatar"
-          id="avatar"
-        >
-          ?
-        </div>
-
-        <div>
-
-          <div id="username">
-            Пользователь
-          </div>
-
-          <small id="telegramId"></small>
-
-        </div>
-
-      </div>
-
-
-      <div class="stats">
-
-        <div>
-          <span>⭐</span>
-          <b id="profileBalance">0</b>
-          <small>Stars</small>
-        </div>
-
-        <div>
-          <span>🪙</span>
-          <b id="profileCoins">0</b>
-          <small>Coins</small>
-        </div>
-
-        <div>
-          <span>🎁</span>
-          <b id="inventoryCount">0</b>
-          <small>Подарков</small>
-        </div>
-
-      </div>
-
-    </section>
-
-  </main>
-
-
-  <nav class="bottom-nav">
-
-    <button
-      onclick="showPage('home')"
-      data-page="home"
-    >
-      <span>⌂</span>
-      <small>Главная</small>
-    </button>
-
-    <button
-      onclick="showPage('cases')"
-      data-page="cases"
-    >
-      <span>📦</span>
-      <small>Кейсы</small>
-    </button>
-
-    <button
-      onclick="showPage('tasks')"
-      data-page="tasks"
-    >
-      <span>🎯</span>
-      <small>Задания</small>
-    </button>
-
-    <button
-      onclick="showPage('inventory')"
-      data-page="inventory"
-    >
-      <span>🎒</span>
-      <small>Инвентарь</small>
-    </button>
-
-    <button
-      onclick="showPage('rating')"
-      data-page="rating"
-    >
-      <span>🏆</span>
-      <small>Рейтинг</small>
-    </button>
-
-    <button
-      onclick="showPage('profile')"
-      data-page="profile"
-    >
-      <span>👤</span>
-      <small>Профиль</small>
-    </button>
-
-  </nav>
+  <button
+    onclick="showPage('referrals')"
+    data-page="referrals"
+  >
+    <span>👥</span>
+    <small>Рефералы</small>
+  </button>
+
+
+  <button
+    onclick="showPage('ranking')"
+    data-page="ranking"
+  >
+    <span>🏆</span>
+    <small>Рейтинг</small>
+  </button>
+
+
+  <button
+    onclick="showPage('profile')"
+    data-page="profile"
+  >
+    <span>👤</span>
+    <small>Профиль</small>
+  </button>
+
+</nav>
 
 </div>
 
 <script src="app.js"></script>
 
 </body>
-        </html>
+  </html>
