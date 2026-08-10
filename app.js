@@ -1,84 +1,273 @@
-const tg = window.Telegram.WebApp;
+const tg = window.Telegram?.WebApp;
 
-tg.ready();
-tg.expand();
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
 
-let balance = 0;
+const API = "/api";
+
+let currentUser = null;
+let gifts = [];
 let inventory = [];
 
-const user = tg.initDataUnsafe?.user;
+// -------------------------
+// Telegram
+// -------------------------
 
-if (user) {
-  document.getElementById("username").textContent =
-    user.first_name || "Пользователь";
+function getTelegramUser() {
+  const user = tg?.initDataUnsafe?.user;
 
-  document.getElementById("userId").textContent =
-    user.id;
-
-  if (user.photo_url) {
-    document.getElementById("avatar").innerHTML =
-      `<img src="${user.photo_url}" width="45" height="45" style="border-radius:50%">`;
+  if (user) {
+    return user;
   }
+
+  // Для проверки сайта вне Telegram
+  return {
+    id: 100000001,
+    username: "test_user",
+    first_name: "Тестовый пользователь"
+  };
 }
 
-function openPage(page) {
-  document.querySelectorAll(".page").forEach(p => {
-    p.classList.remove("active");
+// -------------------------
+// API
+// -------------------------
+
+async function api(path, options = {}) {
+  const response = await fetch(API + path, {
+    headers: {
+      "Content-Type": "application/json"
+    },
+    ...options
   });
 
-  document.getElementById(page).classList.add("active");
+  const data = await response.json();
+
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || "Ошибка API");
+  }
+
+  return data;
 }
 
-function buyGift(name, price) {
-  tg.showConfirm(
-    `Купить ${name} за ⭐ ${price}?`,
-    confirmed => {
-      if (!confirmed) return;
+// -------------------------
+// Пользователь
+// -------------------------
 
-      tg.showAlert(
-        "Оплата Stars будет подключена на следующем этапе."
-      );
-    }
+async function loadUser() {
+  const tgUser = getTelegramUser();
+
+  const data = await api("/user", {
+    method: "POST",
+    body: JSON.stringify({
+      id: tgUser.id,
+      username: tgUser.username || null,
+      first_name: tgUser.first_name || null
+    })
+  });
+
+  currentUser = data.user;
+
+  document.getElementById("balance").textContent =
+    currentUser.balance ?? 0;
+
+  document.getElementById("profileBalance").textContent =
+    currentUser.balance ?? 0;
+
+  document.getElementById("username").textContent =
+    currentUser.username
+      ? "@" + currentUser.username
+      : currentUser.first_name || "Пользователь";
+
+  document.getElementById("telegramId").textContent =
+    "ID: " + currentUser.id;
+
+  const firstLetter =
+    (currentUser.first_name || "U").charAt(0).toUpperCase();
+
+  document.getElementById("avatar").textContent = firstLetter;
+
+  createReferralLink();
+}
+
+// -------------------------
+// Подарки
+// -------------------------
+
+async function loadGifts() {
+  const data = await api("/gifts");
+
+  gifts = data.gifts || [];
+
+  renderGifts();
+  renderPopular();
+}
+
+// -------------------------
+// Инвентарь
+// -------------------------
+
+async function loadInventory() {
+  if (!currentUser) return;
+
+  const data = await api(
+    "/inventory?user_id=" + encodeURIComponent(currentUser.id)
   );
+
+  inventory = data.inventory || [];
+
+  renderInventory();
+
+  document.getElementById("inventoryCount").textContent =
+    inventory.length;
 }
 
-function showTelegramInfo() {
-  tg.showAlert(
-    "Платежи Telegram Stars подключим после настройки Bot API."
-  );
-}
+// -------------------------
+// Рендер подарков
+// -------------------------
 
-function showReferrals() {
-  const id = user?.id || "USER";
+function renderGifts() {
+  const container = document.getElementById("gifts");
 
-  tg.showAlert(
-    `Твоя реферальная ссылка:\nhttps://t.me/VldstxCase_bot?start=ref_${id}`
-  );
-}
-
-function updateUI() {
-  document.getElementById("balance").textContent = balance;
-  document.getElementById("profileBalance").textContent = balance;
-  document.getElementById("giftCount").textContent = inventory.length;
-
-  const list = document.getElementById("inventoryList");
-
-  if (!inventory.length) {
-    list.innerHTML = `
+  if (!gifts.length) {
+    container.innerHTML = `
       <div class="empty">
-        🎁 Здесь появятся твои подарки
+        🎁 Пока нет доступных подарков
       </div>
     `;
     return;
   }
 
-  list.innerHTML = inventory.map(item => `
-    <div class="inventory-item">
-      <div style="font-size:45px">${item.icon}</div>
-      <b>${item.name}</b>
-      <div style="color:#aaa">⭐ ${item.price}</div>
+  container.innerHTML = gifts.map(gift => `
+    <div class="gift-card">
+
+      <div class="gift-icon">
+        ${escapeHtml(gift.emoji || "🎁")}
+      </div>
+
+      <div>
+        <div class="gift-name">
+          ${escapeHtml(gift.name)}
+        </div>
+
+        <div class="gift-description">
+          ${escapeHtml(gift.description || "Коллекционный подарок")}
+        </div>
+      </div>
+
+      <div class="gift-bottom">
+
+        <div class="price">
+          ⭐ ${Number(gift.price || 0)}
+        </div>
+
+        <button
+          class="buy"
+          onclick="buyGift(${Number(gift.id)})"
+        >
+          Купить
+        </button>
+
+      </div>
+
     </div>
   `).join("");
 }
 
-updateUI();
+function renderPopular() {
+  const container = document.getElementById("popular");
+
+  const popular = gifts.slice(0, 4);
+
+  if (!popular.length) {
+    container.innerHTML = `
+      <div class="empty">
+        Скоро здесь появятся подарки
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = popular.map(gift => `
+    <div class="gift-card">
+
+      <div class="gift-icon">
+        ${escapeHtml(gift.emoji || "🎁")}
+      </div>
+
+      <div class="gift-name">
+        ${escapeHtml(gift.name)}
+      </div>
+
+      <div class="gift-bottom">
+        <span class="price">
+          ⭐ ${Number(gift.price || 0)}
+        </span>
+
+        <button
+          class="buy"
+          onclick="showPage('shop')"
+        >
+          Открыть
+        </button>
+      </div>
+
+    </div>
+  `).join("");
+}
+
+// -------------------------
+// Инвентарь
+// -------------------------
+
+function renderInventory() {
+  const container = document.getElementById("inventoryList");
+
+  if (!inventory.length) {
+    container.innerHTML = `
+      <div class="empty">
+        🎒 Инвентарь пока пуст
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = inventory.map(item => `
+    <div class="gift-card">
+
+      <div class="gift-icon">
+        ${escapeHtml(item.emoji || "🎁")}
+      </div>
+
+      <div class="gift-name">
+        ${escapeHtml(item.name)}
+      </div>
+
+      <div class="gift-description">
+        ${escapeHtml(item.description || "")}
+      </div>
+
+      <div class="price">
+        ⭐ ${Number(item.price || 0)}
+      </div>
+
+    </div>
+  `).join("");
+}
+
+// -------------------------
+// Покупка
+// -------------------------
+
+async function buyGift(giftId) {
+  if (!currentUser) return;
+
+  // Пока покупки отключены.
+  // На следующем этапе подключим Telegram Stars
+  // через Telegram Payments.
+
+  if (tg?.showPopup) {
+    tg.showPopup({
+      title: "Покупка",
+      message: "Оплата Stars будет подключена
