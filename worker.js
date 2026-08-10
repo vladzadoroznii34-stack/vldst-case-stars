@@ -199,6 +199,8 @@ export default {
     }
 
     // Статические файлы Mini App
-    return env.ASSETS.fetch(request);
+    return new Response("VLDST CASE x STARS API работает", {
+  headers: {
+    "Content-Type": "text/plain; charset=UTF-8"
   }
-};
+});
