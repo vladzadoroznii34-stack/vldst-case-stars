@@ -15,16 +15,19 @@ export default {
 
     try {
 
-      // =========================
+      // =====================================================
       // DATABASE TEST
-      // =========================
+      // =====================================================
 
-      if (url.pathname === "/api/test") {
+      if (
+        url.pathname === "/api/test" &&
+        request.method === "GET"
+      ) {
         const result = await env.DB
           .prepare(`
             SELECT name
             FROM sqlite_master
-            WHERE type='table'
+            WHERE type = 'table'
             ORDER BY name
           `)
           .all();
@@ -37,9 +40,9 @@ export default {
       }
 
 
-      // =========================
+      // =====================================================
       // USER
-      // =========================
+      // =====================================================
 
       if (
         url.pathname === "/api/user" &&
@@ -49,7 +52,10 @@ export default {
 
         const id = Number(body.id);
 
-        if (!Number.isSafeInteger(id) || id <= 0) {
+        if (
+          !Number.isSafeInteger(id) ||
+          id <= 0
+        ) {
           return json({
             ok: false,
             error: "Некорректный Telegram ID"
@@ -61,6 +67,7 @@ export default {
             INSERT INTO users
               (id, username, first_name)
             VALUES (?, ?, ?)
+
             ON CONFLICT(id) DO UPDATE SET
               username = excluded.username,
               first_name = excluded.first_name
@@ -94,9 +101,9 @@ export default {
       }
 
 
-      // =========================
+      // =====================================================
       // COINS
-      // =========================
+      // =====================================================
 
       if (
         url.pathname === "/api/coins" &&
@@ -105,6 +112,16 @@ export default {
         const userId = Number(
           url.searchParams.get("user_id")
         );
+
+        if (
+          !Number.isSafeInteger(userId) ||
+          userId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректный user_id"
+          }, headers, 400);
+        }
 
         const user = await env.DB
           .prepare(`
@@ -129,9 +146,9 @@ export default {
       }
 
 
-      // =========================
+      // =====================================================
       // GIFTS
-      // =========================
+      // =====================================================
 
       if (
         url.pathname === "/api/gifts" &&
@@ -157,9 +174,9 @@ export default {
       }
 
 
-      // =========================
+      // =====================================================
       // CASES
-      // =========================
+      // =====================================================
 
       if (
         url.pathname === "/api/cases" &&
@@ -189,9 +206,9 @@ export default {
       }
 
 
-      // =========================
-      // CASE CONTENT
-      // =========================
+      // =====================================================
+      // CASE ITEMS
+      // =====================================================
 
       if (
         url.pathname === "/api/cases/items" &&
@@ -201,16 +218,42 @@ export default {
           url.searchParams.get("case_id")
         );
 
-        if (!Number.isSafeInteger(caseId)) {
+        if (
+          !Number.isSafeInteger(caseId) ||
+          caseId <= 0
+        ) {
           return json({
             ok: false,
             error: "Некорректный case_id"
           }, headers, 400);
         }
 
+        const gameCase = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              type,
+              price_coins,
+              stars_price
+            FROM cases
+            WHERE id = ?
+              AND is_active = 1
+          `)
+          .bind(caseId)
+          .first();
+
+        if (!gameCase) {
+          return json({
+            ok: false,
+            error: "Кейс не найден"
+          }, headers, 404);
+        }
+
         const result = await env.DB
           .prepare(`
             SELECT
+              case_items.id,
               case_items.gift_id,
               case_items.chance,
               gifts.name,
@@ -218,24 +261,37 @@ export default {
               gifts.price,
               gifts.description
             FROM case_items
+
             JOIN gifts
               ON gifts.id = case_items.gift_id
+
             WHERE case_items.case_id = ?
+
             ORDER BY case_items.chance DESC
           `)
           .bind(caseId)
           .all();
 
+        const items = result.results || [];
+
+        const totalChance = items.reduce(
+          (sum, item) =>
+            sum + Number(item.chance || 0),
+          0
+        );
+
         return json({
           ok: true,
-          items: result.results
+          case: gameCase,
+          items,
+          total_chance: totalChance
         }, headers);
       }
 
 
-      // =========================
-      // OPEN CASE FOR COINS
-      // =========================
+      // =====================================================
+      // OPEN COINS CASE
+      // =====================================================
 
       if (
         url.pathname === "/api/cases/open" &&
@@ -260,7 +316,9 @@ export default {
 
         const user = await env.DB
           .prepare(`
-            SELECT id, coins
+            SELECT
+              id,
+              coins
             FROM users
             WHERE id = ?
           `)
@@ -279,6 +337,8 @@ export default {
             SELECT
               id,
               name,
+              description,
+              emoji,
               price_coins,
               stars_price,
               type,
@@ -289,39 +349,58 @@ export default {
           .bind(caseId)
           .first();
 
-        if (!gameCase || !gameCase.is_active) {
+        if (
+          !gameCase ||
+          Number(gameCase.is_active) !== 1
+        ) {
           return json({
             ok: false,
             error: "Кейс недоступен"
           }, headers, 404);
         }
 
+        // Star Case здесь не открываем.
+        // Для него нужна настоящая Telegram Stars оплата.
         if (gameCase.type !== "coins") {
           return json({
             ok: false,
-            error: "Этот кейс нельзя открыть за Coins"
+            error: "Этот кейс открывается за Telegram Stars",
+            payment_required: true,
+            stars_price: Number(
+              gameCase.stars_price || 0
+            )
           }, headers, 400);
         }
 
-        const price = Number(gameCase.price_coins || 0);
+        const price = Number(
+          gameCase.price_coins || 0
+        );
 
-        if (price <= 0) {
+        if (
+          !Number.isSafeInteger(price) ||
+          price <= 0
+        ) {
           return json({
             ok: false,
-            error: "У кейса не указана цена"
+            error: "Некорректная цена кейса"
           }, headers, 400);
         }
 
-        if (Number(user.coins || 0) < price) {
+        const userCoins = Number(
+          user.coins || 0
+        );
+
+        if (userCoins < price) {
           return json({
             ok: false,
             error: "Недостаточно Coins",
             required: price,
-            coins: Number(user.coins || 0)
+            coins: userCoins
           }, headers, 400);
         }
 
-        const items = await env.DB
+        // Получаем награды
+        const result = await env.DB
           .prepare(`
             SELECT
               case_items.gift_id,
@@ -331,42 +410,55 @@ export default {
               gifts.price,
               gifts.description
             FROM case_items
+
             JOIN gifts
               ON gifts.id = case_items.gift_id
+
             WHERE case_items.case_id = ?
+              AND case_items.chance > 0
           `)
           .bind(caseId)
           .all();
 
-        if (!items.results.length) {
+        const items = result.results || [];
+
+        if (!items.length) {
           return json({
             ok: false,
             error: "В кейсе нет наград"
           }, headers, 400);
         }
 
-        const totalChance = items.results.reduce(
+        const totalChance = items.reduce(
           (sum, item) =>
             sum + Number(item.chance || 0),
           0
         );
 
-        if (totalChance <= 0) {
+        if (
+          !Number.isFinite(totalChance) ||
+          totalChance <= 0
+        ) {
           return json({
             ok: false,
             error: "Некорректные шансы кейса"
           }, headers, 400);
         }
 
-        // Случайный выбор на сервере
+        // =================================================
+        // RANDOM REWARD
+        // =================================================
+
         const random =
           Math.random() * totalChance;
 
         let current = 0;
         let selected = null;
 
-        for (const item of items.results) {
-          current += Number(item.chance || 0);
+        for (const item of items) {
+          current += Number(
+            item.chance || 0
+          );
 
           if (random < current) {
             selected = item;
@@ -375,16 +467,20 @@ export default {
         }
 
         if (!selected) {
-          selected = items.results[
-            items.results.length - 1
-          ];
+          selected =
+            items[items.length - 1];
         }
 
-        // Списываем Coins
-        await env.DB
+        // =================================================
+        // СПИСАНИЕ COINS
+        // =================================================
+
+        const updateResult = await env.DB
           .prepare(`
             UPDATE users
+
             SET coins = coins - ?
+
             WHERE id = ?
               AND coins >= ?
           `)
@@ -395,11 +491,27 @@ export default {
           )
           .run();
 
-        // Добавляем подарок
+        if (
+          !updateResult ||
+          updateResult.meta.changes !== 1
+        ) {
+          return json({
+            ok: false,
+            error: "Не удалось списать Coins. Попробуйте ещё раз."
+          }, headers, 409);
+        }
+
+        // =================================================
+        // INVENTORY
+        // =================================================
+
         await env.DB
           .prepare(`
             INSERT INTO inventory
-              (user_id, gift_id)
+              (
+                user_id,
+                gift_id
+              )
             VALUES (?, ?)
           `)
           .bind(
@@ -408,7 +520,10 @@ export default {
           )
           .run();
 
-        // История открытия
+        // =================================================
+        // HISTORY
+        // =================================================
+
         await env.DB
           .prepare(`
             INSERT INTO case_opens
@@ -429,9 +544,14 @@ export default {
           )
           .run();
 
+        // =================================================
+        // UPDATED BALANCE
+        // =================================================
+
         const updatedUser = await env.DB
           .prepare(`
-            SELECT coins
+            SELECT
+              coins
             FROM users
             WHERE id = ?
           `)
@@ -440,16 +560,311 @@ export default {
 
         return json({
           ok: true,
+
           case: {
             id: gameCase.id,
             name: gameCase.name
           },
+
           reward: {
             gift_id: selected.gift_id,
             name: selected.name,
             emoji: selected.emoji,
-            price: selected.price,
-            chance: selected.chance
+            price: Number(
+              selected.price || 0
+            ),
+            chance: Number(
+              selected.chance || 0
+            )
           },
+
           coins: Number(
             updatedUser?.coins || 0
+          )
+        }, headers);
+      }
+
+
+      // =====================================================
+      // STAR CASE PAYMENT INFO
+      // =====================================================
+
+      if (
+        url.pathname === "/api/cases/star" &&
+        request.method === "POST"
+      ) {
+        const body = await request.json();
+
+        const userId = Number(body.user_id);
+        const caseId = Number(body.case_id);
+
+        if (
+          !Number.isSafeInteger(userId) ||
+          !Number.isSafeInteger(caseId) ||
+          userId <= 0 ||
+          caseId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректные данные"
+          }, headers, 400);
+        }
+
+        const gameCase = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              type,
+              stars_price,
+              is_active
+            FROM cases
+            WHERE id = ?
+          `)
+          .bind(caseId)
+          .first();
+
+        if (
+          !gameCase ||
+          Number(gameCase.is_active) !== 1
+        ) {
+          return json({
+            ok: false,
+            error: "Кейс не найден"
+          }, headers, 404);
+        }
+
+        if (gameCase.type !== "stars") {
+          return json({
+            ok: false,
+            error: "Это не Stars-кейс"
+          }, headers, 400);
+        }
+
+        const starsPrice = Number(
+          gameCase.stars_price || 0
+        );
+
+        if (
+          !Number.isSafeInteger(starsPrice) ||
+          starsPrice <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректная цена Stars"
+          }, headers, 400);
+        }
+
+        /*
+          ВАЖНО:
+
+          Здесь намеренно НЕ выдаём подарок.
+
+          Настоящий Telegram Stars платеж должен быть
+          создан через Bot API и подтверждён после
+          успешной оплаты.
+
+          Поэтому сейчас клиент получает информацию,
+          что требуется оплата.
+        */
+
+        return json({
+          ok: true,
+          payment_required: true,
+          case_id: gameCase.id,
+          case_name: gameCase.name,
+          stars: starsPrice,
+          message:
+            "Для открытия этого кейса требуется оплата Telegram Stars."
+        }, headers);
+      }
+
+
+      // =====================================================
+      // INVENTORY
+      // =====================================================
+
+      if (
+        url.pathname === "/api/inventory" &&
+        request.method === "GET"
+      ) {
+        const userId = Number(
+          url.searchParams.get("user_id")
+        );
+
+        if (
+          !Number.isSafeInteger(userId) ||
+          userId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректный user_id"
+          }, headers, 400);
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              inventory.id,
+              inventory.user_id,
+              inventory.gift_id,
+              inventory.created_at,
+
+              gifts.name,
+              gifts.emoji,
+              gifts.price,
+              gifts.description
+
+            FROM inventory
+
+            JOIN gifts
+              ON gifts.id = inventory.gift_id
+
+            WHERE inventory.user_id = ?
+
+            ORDER BY inventory.created_at DESC
+          `)
+          .bind(userId)
+          .all();
+
+        return json({
+          ok: true,
+          inventory: result.results
+        }, headers);
+      }
+
+
+      // =====================================================
+      // REFERRAL
+      // =====================================================
+
+      if (
+        url.pathname === "/api/referral" &&
+        request.method === "POST"
+      ) {
+        const body = await request.json();
+
+        const userId = Number(
+          body.user_id
+        );
+
+        const referrerId = Number(
+          body.referrer_id
+        );
+
+        if (
+          !Number.isSafeInteger(userId) ||
+          !Number.isSafeInteger(referrerId) ||
+          userId <= 0 ||
+          referrerId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректные данные"
+          }, headers, 400);
+        }
+
+        if (userId === referrerId) {
+          return json({
+            ok: false,
+            error: "Нельзя пригласить самого себя"
+          }, headers, 400);
+        }
+
+        const user = await env.DB
+          .prepare(`
+            SELECT id
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(userId)
+          .first();
+
+        if (!user) {
+          return json({
+            ok: false,
+            error: "Пользователь не найден"
+          }, headers, 404);
+        }
+
+        const referrer = await env.DB
+          .prepare(`
+            SELECT id
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(referrerId)
+          .first();
+
+        if (!referrer) {
+          return json({
+            ok: false,
+            error: "Пригласивший пользователь не найден"
+          }, headers, 404);
+        }
+
+        const existing = await env.DB
+          .prepare(`
+            SELECT id
+            FROM referrals
+            WHERE user_id = ?
+            LIMIT 1
+          `)
+          .bind(userId)
+          .first();
+
+        if (existing) {
+          return json({
+            ok: false,
+            error: "Реферальная связь уже существует"
+          }, headers, 409);
+        }
+
+        await env.DB
+          .prepare(`
+            INSERT INTO referrals
+              (
+                user_id,
+                referrer_id
+              )
+            VALUES (?, ?)
+          `)
+          .bind(
+            userId,
+            referrerId
+          )
+          .run();
+
+        return json({
+          ok: true,
+          message: "Реферал успешно добавлен"
+        }, headers);
+      }
+
+
+      // =====================================================
+      // REFERRAL STATS
+      // =====================================================
+
+      if (
+        url.pathname === "/api/referrals" &&
+        request.method === "GET"
+      ) {
+        const userId = Number(
+          url.searchParams.get("user_id")
+        );
+
+        if (
+          !Number.isSafeInteger(userId) ||
+          userId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректный user_id"
+          }, headers, 400);
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              COUNT(*) AS
