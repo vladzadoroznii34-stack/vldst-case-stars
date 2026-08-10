@@ -1,8 +1,8 @@
 const tg = window.Telegram?.WebApp;
 
 if (tg) {
-tg.ready();
-tg.expand();
+  tg.ready();
+  tg.expand();
 }
 
 const API = "/api";
@@ -13,630 +13,652 @@ let inventory = [];
 let tasks = [];
 
 /* =========================
-TELEGRAM
+   TELEGRAM
 ========================= */
 
 function getTelegramUser() {
-const user = tg?.initDataUnsafe?.user;
+  const user = tg?.initDataUnsafe?.user;
 
-if (user) return user;
+  if (user) return user;
 
-return {
-id: 100000001,
-username: "test_user",
-first_name: "Тестовый пользователь"
-};
+  return {
+    id: 100000001,
+    username: "test_user",
+    first_name: "Тестовый пользователь"
+  };
 }
 
 /* =========================
-API
+   API
 ========================= */
 
 async function api(path, options = {}) {
-const response = await fetch(API + path, {
-...options,
-headers: {
-"Content-Type": "application/json",
-...(options.headers || {})
-}
-});
+  const response = await fetch(API + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
 
-const data = await response.json();
+  let data;
 
-if (!response.ok || data.ok === false) {
-throw new Error(data.error || "Ошибка API");
-}
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("Сервер вернул некорректный ответ");
+  }
 
-return data;
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || "Ошибка API");
+  }
+
+  return data;
 }
 
 /* =========================
-НАВИГАЦИЯ
+   НАВИГАЦИЯ
 ========================= */
 
 function showPage(page) {
-document.querySelectorAll(".page").forEach(element => {
-element.classList.remove("active");
-});
+  document.querySelectorAll(".page").forEach(element => {
+    element.classList.remove("active");
+  });
 
-const target = document.getElementById(page);
+  const target = document.getElementById(page);
 
-if (!target) {
-console.error("Страница не найдена:", page);
-return;
-}
+  if (!target) {
+    console.error("Страница не найдена:", page);
+    return;
+  }
 
-target.classList.add("active");
+  target.classList.add("active");
 
-document.querySelectorAll(".bottom-nav button").forEach(button => {
-button.classList.remove("active");
-});
+  document.querySelectorAll(".bottom-nav button").forEach(button => {
+    button.classList.remove("active");
+  });
 
-const activeButton = document.querySelector(
-".bottom-nav button[data-page="${page}"]"
-);
+  const activeButton = document.querySelector(
+    `.bottom-nav button[data-page="${page}"]`
+  );
 
-if (activeButton) {
-activeButton.classList.add("active");
-}
+  if (activeButton) {
+    activeButton.classList.add("active");
+  }
 
-if (page === "inventory") {
-loadInventory().catch(console.error);
-}
+  if (page === "inventory") {
+    loadInventory().catch(error => {
+      console.error("Ошибка инвентаря:", error);
+    });
+  }
 
-if (page === "tasks") {
-loadTasks().catch(console.error);
-}
+  if (page === "tasks") {
+    loadTasks().catch(error => {
+      console.error("Ошибка заданий:", error);
+    });
+  }
 }
 
 /* =========================
-ПОЛЬЗОВАТЕЛЬ
+   ПОЛЬЗОВАТЕЛЬ
 ========================= */
 
 async function loadUser() {
-const user = getTelegramUser();
+  const user = getTelegramUser();
 
-const data = await api("/user", {
-method: "POST",
-body: JSON.stringify({
-id: user.id,
-username: user.username || null,
-first_name: user.first_name || null
-})
-});
+  const data = await api("/user", {
+    method: "POST",
+    body: JSON.stringify({
+      id: user.id,
+      username: user.username || null,
+      first_name: user.first_name || null
+    })
+  });
 
-currentUser = data.user;
+  currentUser = data.user;
 
-updateUserBalance();
+  updateUserBalance();
 
-document.getElementById("username").textContent =
-currentUser.username
-? "@" + currentUser.username
-: currentUser.first_name || "Пользователь";
+  const username = document.getElementById("username");
+  const telegramId = document.getElementById("telegramId");
+  const avatar = document.getElementById("avatar");
 
-document.getElementById("telegramId").textContent =
-"ID: " + currentUser.id;
+  if (username) {
+    username.textContent =
+      currentUser.username
+        ? "@" + currentUser.username
+        : currentUser.first_name || "Пользователь";
+  }
 
-document.getElementById("avatar").textContent =
-(currentUser.first_name || "U").charAt(0).toUpperCase();
+  if (telegramId) {
+    telegramId.textContent = "ID: " + currentUser.id;
+  }
 
-createReferralLink();
+  if (avatar) {
+    avatar.textContent =
+      (currentUser.first_name || "U").charAt(0).toUpperCase();
+  }
+
+  createReferralLink();
 }
 
 /* =========================
-BALANCE / COINS
+   BALANCE / COINS
 ========================= */
 
 function updateUserBalance() {
-if (!currentUser) return;
+  if (!currentUser) return;
 
-const balance = Number(currentUser.balance || 0);
-const coins = Number(currentUser.coins || 0);
+  const balance = Number(currentUser.balance || 0);
+  const coins = Number(currentUser.coins || 0);
 
-const balanceElement = document.getElementById("balance");
-const profileBalanceElement =
-document.getElementById("profileBalance");
+  const balanceElement = document.getElementById("balance");
+  const profileBalanceElement =
+    document.getElementById("profileBalance");
 
-const coinsElement =
-document.getElementById("coins");
+  const coinsElement =
+    document.getElementById("coins");
 
-const tasksCoinsElement =
-document.getElementById("tasksCoins");
+  const tasksCoinsElement =
+    document.getElementById("tasksCoins");
 
-const profileCoinsElement =
-document.getElementById("profileCoins");
+  const profileCoinsElement =
+    document.getElementById("profileCoins");
 
-if (balanceElement) {
-balanceElement.textContent = balance;
-}
+  if (balanceElement) {
+    balanceElement.textContent = balance;
+  }
 
-if (profileBalanceElement) {
-profileBalanceElement.textContent = balance;
-}
+  if (profileBalanceElement) {
+    profileBalanceElement.textContent = balance;
+  }
 
-if (coinsElement) {
-coinsElement.textContent = coins;
-}
+  if (coinsElement) {
+    coinsElement.textContent = coins;
+  }
 
-if (tasksCoinsElement) {
-tasksCoinsElement.textContent = coins;
-}
+  if (tasksCoinsElement) {
+    tasksCoinsElement.textContent = coins;
+  }
 
-if (profileCoinsElement) {
-profileCoinsElement.textContent = coins;
-}
+  if (profileCoinsElement) {
+    profileCoinsElement.textContent = coins;
+  }
 }
 
 async function loadCoins() {
-if (!currentUser) return;
+  if (!currentUser) return;
 
-const data = await api(
-"/coins?user_id=" +
-encodeURIComponent(currentUser.id)
-);
+  const data = await api(
+    "/coins?user_id=" +
+      encodeURIComponent(currentUser.id)
+  );
 
-currentUser.coins = Number(data.coins || 0);
+  currentUser.coins = Number(data.coins || 0);
 
-updateUserBalance();
+  updateUserBalance();
 }
 
 /* =========================
-ПОДАРКИ
+   ПОДАРКИ
 ========================= */
 
 async function loadGifts() {
-const data = await api("/gifts");
+  const data = await api("/gifts");
 
-gifts = data.gifts || [];
+  gifts = data.gifts || [];
 
-renderGifts();
-renderPopular();
+  renderGifts();
+  renderPopular();
 }
 
 function renderGifts() {
-const container = document.getElementById("gifts");
+  const container = document.getElementById("gifts");
 
-if (!container) return;
+  if (!container) return;
 
-if (!gifts.length) {
-container.innerHTML =
-"<div class="empty">🎁 Подарков пока нет</div>";
-return;
-}
+  if (!gifts.length) {
+    container.innerHTML =
+      `<div class="empty">🎁 Подарков пока нет</div>`;
+    return;
+  }
 
-container.innerHTML = gifts.map(gift => `
-<div class="gift-card">
+  container.innerHTML = gifts.map(gift => `
+    <div class="gift-card">
 
-  <div class="gift-icon">
-    ${escapeHtml(gift.emoji || "🎁")}
-  </div>
+      <div class="gift-icon">
+        ${escapeHtml(gift.emoji || "🎁")}
+      </div>
 
-  <div class="gift-name">
-    ${escapeHtml(gift.name)}
-  </div>
+      <div class="gift-name">
+        ${escapeHtml(gift.name)}
+      </div>
 
-  <div class="gift-description">
-    ${escapeHtml(gift.description || "Коллекционный подарок")}
-  </div>
+      <div class="gift-description">
+        ${escapeHtml(
+          gift.description || "Коллекционный подарок"
+        )}
+      </div>
 
-  <div class="gift-bottom">
+      <div class="gift-bottom">
 
-    <span class="price">
-      ⭐ ${Number(gift.price || 0)}
-    </span>
+        <span class="price">
+          ⭐ ${Number(gift.price || 0)}
+        </span>
 
-    <button
-      class="buy"
-      onclick="buyGift(${Number(gift.id)})">
-      Купить
-    </button>
+        <button
+          class="buy"
+          onclick="buyGift(${Number(gift.id)})">
+          Купить
+        </button>
 
-  </div>
+      </div>
 
-</div>
-
-`).join("");
+    </div>
+  `).join("");
 }
 
 function renderPopular() {
-const container = document.getElementById("popular");
+  const container = document.getElementById("popular");
 
-if (!container) return;
+  if (!container) return;
 
-const popular = gifts.slice(0, 4);
+  const popular = gifts.slice(0, 4);
 
-if (!popular.length) {
-container.innerHTML =
-"<div class="empty">🎁 Скоро здесь появятся подарки</div>";
-return;
-}
+  if (!popular.length) {
+    container.innerHTML =
+      `<div class="empty">🎁 Скоро здесь появятся подарки</div>`;
+    return;
+  }
 
-container.innerHTML = popular.map(gift => `
-<div class="gift-card">
+  container.innerHTML = popular.map(gift => `
+    <div class="gift-card">
 
-  <div class="gift-icon">
-    ${escapeHtml(gift.emoji || "🎁")}
-  </div>
+      <div class="gift-icon">
+        ${escapeHtml(gift.emoji || "🎁")}
+      </div>
 
-  <div class="gift-name">
-    ${escapeHtml(gift.name)}
-  </div>
+      <div class="gift-name">
+        ${escapeHtml(gift.name)}
+      </div>
 
-  <div class="gift-bottom">
+      <div class="gift-bottom">
 
-    <span class="price">
-      ⭐ ${Number(gift.price || 0)}
-    </span>
+        <span class="price">
+          ⭐ ${Number(gift.price || 0)}
+        </span>
 
-    <button
-      class="buy"
-      onclick="showPage('shop')">
-      Открыть
-    </button>
+        <button
+          class="buy"
+          onclick="showPage('shop')">
+          Открыть
+        </button>
 
-  </div>
+      </div>
 
-</div>
-
-`).join("");
+    </div>
+  `).join("");
 }
 
 /* =========================
-ЗАДАНИЯ
+   ЗАДАНИЯ
 ========================= */
 
 async function loadTasks() {
-if (!currentUser) return;
+  if (!currentUser) return;
 
-const container = document.getElementById("tasksList");
+  const container =
+    document.getElementById("tasksList");
 
-if (!container) return;
+  if (!container) return;
 
-container.innerHTML =
-"<div class="empty">⏳ Загружаем задания...</div>";
+  container.innerHTML =
+    `<div class="empty">⏳ Загружаем задания...</div>`;
 
-try {
-const data = await api(
-"/tasks?user_id=" +
-encodeURIComponent(currentUser.id)
-);
+  try {
+    const data = await api(
+      "/tasks?user_id=" +
+        encodeURIComponent(currentUser.id)
+    );
 
-tasks = data.tasks || [];
+    tasks = data.tasks || [];
 
-renderTasks();
+    renderTasks();
 
-await loadCoins();
+    await loadCoins();
 
-} catch (error) {
-console.error("Ошибка загрузки заданий:", error);
+  } catch (error) {
+    console.error(
+      "Ошибка загрузки заданий:",
+      error
+    );
 
-container.innerHTML =
-  `<div class="empty">❌ Не удалось загрузить задания</div>`;
-
-}
+    container.innerHTML =
+      `<div class="empty">
+        ❌ Не удалось загрузить задания
+      </div>`;
+  }
 }
 
 function renderTasks() {
-const container = document.getElementById("tasksList");
+  const container =
+    document.getElementById("tasksList");
 
-if (!container) return;
+  if (!container) return;
 
-if (!tasks.length) {
-container.innerHTML = "<div class="empty"> 🎯 Сейчас нет доступных заданий </div>";
+  if (!tasks.length) {
+    container.innerHTML =
+      `<div class="empty">
+        🎯 Сейчас нет доступных заданий
+      </div>`;
+    return;
+  }
 
-return;
+  container.innerHTML = tasks.map(task => {
 
-}
+    const completed =
+      Number(task.completed) === 1;
 
-container.innerHTML = tasks.map(task => {
+    return `
+      <div class="gift-card">
 
-const completed =
-  Number(task.completed) === 1;
+        <div class="gift-icon">
+          🎯
+        </div>
 
-return `
-  <div class="gift-card">
+        <div class="gift-name">
+          ${escapeHtml(task.title)}
+        </div>
 
-    <div class="gift-icon">
-      🎯
-    </div>
+        <div class="gift-description">
+          ${escapeHtml(
+            task.description ||
+            "Выполни задание и получи награду"
+          )}
+        </div>
 
-    <div class="gift-name">
-      ${escapeHtml(task.title)}
-    </div>
+        <div class="price">
+          🪙 +${Number(task.reward || 0)}
+        </div>
 
-    <div class="gift-description">
-      ${escapeHtml(
-        task.description ||
-        "Выполни задание и получи награду"
-      )}
-    </div>
+        <div class="gift-bottom">
 
-    <div class="price">
-      🪙 +${Number(task.reward || 0)}
-    </div>
+          ${
+            completed
+              ? `
+                <button
+                  class="buy"
+                  disabled
+                  style="opacity:.5;">
+                  ✓ Получено
+                </button>
+              `
+              : `
+                <button
+                  class="buy"
+                  onclick="completeTask(${Number(task.id)})">
+                  Получить
+                </button>
+              `
+          }
 
-    <div class="gift-bottom">
+        </div>
 
-      ${
-        completed
-          ? `
-            <button
-              class="buy"
-              disabled
-              style="opacity:.5;">
-              ✓ Получено
-            </button>
-          `
-          : `
-            <button
-              class="buy"
-              onclick="completeTask(${Number(task.id)})">
-              Получить
-            </button>
-          `
-      }
-
-    </div>
-
-  </div>
-`;
-
-}).join("");
+      </div>
+    `;
+  }).join("");
 }
 
 /* =========================
-ВЫПОЛНЕНИЕ ЗАДАНИЯ
+   ВЫПОЛНЕНИЕ ЗАДАНИЯ
 ========================= */
 
 async function completeTask(taskId) {
-if (!currentUser) return;
+  if (!currentUser) return;
 
-const task = tasks.find(
-item => Number(item.id) === Number(taskId)
-);
+  const task = tasks.find(
+    item => Number(item.id) === Number(taskId)
+  );
 
-if (!task) return;
+  if (!task) return;
 
-if (Number(task.completed) === 1) {
-showMessage(
-"Задание",
-"Ты уже получил награду за это задание."
-);
-return;
-}
+  if (Number(task.completed) === 1) {
+    showMessage(
+      "Задание",
+      "Ты уже получил награду за это задание."
+    );
+    return;
+  }
 
-try {
+  try {
+    const data = await api(
+      "/tasks/complete",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          task_id: taskId
+        })
+      }
+    );
 
-const data = await api("/tasks/complete", {
-  method: "POST",
+    currentUser.coins =
+      Number(data.coins || 0);
 
-  body: JSON.stringify({
-    user_id: currentUser.id,
-    task_id: taskId
-  })
-});
+    updateUserBalance();
 
-currentUser.coins =
-  Number(data.coins || 0);
+    showMessage(
+      "🎉 Награда получена",
+      `Тебе начислено 🪙 ${data.reward}`
+    );
 
-updateUserBalance();
+    await loadTasks();
 
-showMessage(
-  "🎉 Награда получена",
-  `Тебе начислено 🪙 ${data.reward}`
-);
+  } catch (error) {
+    console.error(error);
 
-await loadTasks();
-
-} catch (error) {
-
-console.error(error);
-
-showMessage(
-  "Ошибка",
-  error.message || "Не удалось получить награду"
-);
-
-}
+    showMessage(
+      "Ошибка",
+      error.message ||
+        "Не удалось получить награду"
+    );
+  }
 }
 
 /* =========================
-INVENTORY
+   ИНВЕНТАРЬ
 ========================= */
 
 async function loadInventory() {
-if (!currentUser) return;
+  if (!currentUser) return;
 
-const data = await api(
-"/inventory?user_id=" +
-encodeURIComponent(currentUser.id)
-);
+  const data = await api(
+    "/inventory?user_id=" +
+      encodeURIComponent(currentUser.id)
+  );
 
-inventory = data.inventory || [];
+  inventory = data.inventory || [];
 
-renderInventory();
+  renderInventory();
 
-const count =
-document.getElementById("inventoryCount");
+  const count =
+    document.getElementById("inventoryCount");
 
-if (count) {
-count.textContent = inventory.length;
-}
+  if (count) {
+    count.textContent = inventory.length;
+  }
 }
 
 function renderInventory() {
-const container =
-document.getElementById("inventoryList");
+  const container =
+    document.getElementById("inventoryList");
 
-if (!container) return;
+  if (!container) return;
 
-if (!inventory.length) {
-container.innerHTML =
-"<div class="empty">🎒 Инвентарь пока пуст</div>";
-return;
-}
+  if (!inventory.length) {
+    container.innerHTML =
+      `<div class="empty">
+        🎒 Инвентарь пока пуст
+      </div>`;
+    return;
+  }
 
-container.innerHTML = inventory.map(item => `
-<div class="gift-card">
+  container.innerHTML = inventory.map(item => `
+    <div class="gift-card">
 
-  <div class="gift-icon">
-    ${escapeHtml(item.emoji || "🎁")}
-  </div>
+      <div class="gift-icon">
+        ${escapeHtml(item.emoji || "🎁")}
+      </div>
 
-  <div class="gift-name">
-    ${escapeHtml(item.name)}
-  </div>
+      <div class="gift-name">
+        ${escapeHtml(item.name)}
+      </div>
 
-  <div class="gift-description">
-    ${escapeHtml(item.description || "")}
-  </div>
+      <div class="gift-description">
+        ${escapeHtml(item.description || "")}
+      </div>
 
-  <div class="price">
-    ⭐ ${Number(item.price || 0)}
-  </div>
+      <div class="price">
+        ⭐ ${Number(item.price || 0)}
+      </div>
 
-</div>
-
-`).join("");
+    </div>
+  `).join("");
 }
 
 /* =========================
-РЕФЕРАЛЫ
+   РЕФЕРАЛЫ
 ========================= */
 
 function createReferralLink() {
-if (!currentUser) return;
+  if (!currentUser) return;
 
-const element =
-document.getElementById("refLink");
+  const element =
+    document.getElementById("refLink");
 
-if (!element) return;
+  if (!element) return;
 
-const link =
-"https://t.me/VldstxCase_bot?start=ref_" +
-currentUser.id;
+  const link =
+    "https://t.me/VldstxCase_bot?start=ref_" +
+    currentUser.id;
 
-element.textContent = link;
+  element.textContent = link;
 }
 
 async function copyReferral() {
-const element =
-document.getElementById("refLink");
+  const element =
+    document.getElementById("refLink");
 
-if (!element) return;
+  if (!element) return;
 
-const link = element.textContent;
+  const link = element.textContent;
 
-try {
+  try {
+    await navigator.clipboard.writeText(link);
 
-await navigator.clipboard.writeText(link);
+    showMessage(
+      "Готово",
+      "Реферальная ссылка скопирована"
+    );
 
-showMessage(
-  "Готово",
-  "Реферальная ссылка скопирована"
-);
-
-} catch {
-
-alert(link);
-
-}
+  } catch {
+    alert(link);
+  }
 }
 
 /* =========================
-ПОКУПКА
+   ПОКУПКА
 ========================= */
 
 function buyGift(giftId) {
-const gift = gifts.find(
-item => Number(item.id) === Number(giftId)
-);
+  const gift = gifts.find(
+    item => Number(item.id) === Number(giftId)
+  );
 
-if (!gift) return;
+  if (!gift) return;
 
-const message =
-"${gift.emoji || "🎁"} ${gift.name}\n\n" +
-"Цена: ⭐ ${gift.price}\n\n" +
-"Оплата Telegram Stars будет подключена следующим этапом.";
+  const message =
+    `${gift.emoji || "🎁"} ${gift.name}\n\n` +
+    `Цена: ⭐ ${gift.price}\n\n` +
+    `Оплата Telegram Stars будет подключена следующим этапом.`;
 
-showMessage(
-"Покупка",
-message
-);
+  showMessage(
+    "Покупка",
+    message
+  );
 }
 
 /* =========================
-POPUP
+   POPUP
 ========================= */
 
 function showMessage(title, message) {
+  if (tg?.showPopup) {
 
-if (tg?.showPopup) {
+    tg.showPopup({
+      title,
+      message,
+      buttons: [
+        {
+          type: "ok",
+          text: "OK"
+        }
+      ]
+    });
 
-tg.showPopup({
-  title,
-  message,
-  buttons: [
-    {
-      type: "ok",
-      text: "OK"
-    }
-  ]
-});
+  } else {
 
-} else {
+    alert(
+      title + "\n\n" + message
+    );
 
-alert(
-  title + "\n\n" + message
-);
-
-}
+  }
 }
 
 /* =========================
-ЗАЩИТА HTML
+   ЗАЩИТА HTML
 ========================= */
 
 function escapeHtml(value) {
-return String(value)
-.replaceAll("&", "&")
-.replaceAll("<", "<")
-.replaceAll(">", ">")
-.replaceAll('"', """)
-.replaceAll("'", "'");
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 /* =========================
-ЗАПУСК
+   ЗАПУСК
 ========================= */
 
 async function init() {
 
-try {
+  try {
 
-await loadUser();
+    await loadUser();
 
-await loadGifts();
+    await loadGifts();
 
-await loadInventory();
+    await loadInventory();
 
-await loadCoins();
+    await loadCoins();
 
-await loadTasks();
+    await loadTasks();
 
-showPage("home");
+    showPage("home");
 
-} catch (error) {
+  } catch (error) {
 
-console.error(
-  "Ошибка запуска:",
-  error
-);
+    console.error(
+      "Ошибка запуска:",
+      error
+    );
 
-}
+  }
 }
 
 document.addEventListener(
-"DOMContentLoaded",
-init
+  "DOMContentLoaded",
+  init
 );
