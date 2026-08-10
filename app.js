@@ -1,8 +1,8 @@
 const tg = window.Telegram?.WebApp;
 
 if (tg) {
-  tg.ready();
-  tg.expand();
+tg.ready();
+tg.expand();
 }
 
 const API = "/api";
@@ -12,709 +12,1551 @@ let gifts = [];
 let inventory = [];
 let tasks = [];
 let cases = [];
-let currentCaseItems = [];
+let currentCase = null;
 
-
-/* =========================
-   TELEGRAM
-========================= */
+/* =====================================================
+TELEGRAM USER
+===================================================== */
 
 function getTelegramUser() {
-  const user = tg?.initDataUnsafe?.user;
 
-  if (user) return user;
+const user = tg?.initDataUnsafe?.user;
 
-  return {
-    id: 100000001,
-    username: "test_user",
-    first_name: "Тестовый пользователь"
-  };
+if (user) {
+return user;
 }
 
+return {
+id: 100000001,
+username: "test_user",
+first_name: "Тестовый пользователь"
+};
+}
 
-/* =========================
-   API
-========================= */
+/* =====================================================
+API
+===================================================== */
 
 async function api(path, options = {}) {
-  const response = await fetch(API + path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
 
-  const data = await response.json();
+const response = await fetch(API + path, {
+...options,
 
-  if (!response.ok || data.ok === false) {
-    throw new Error(data.error || "Ошибка API");
-  }
-
-  return data;
+headers: {
+  "Content-Type": "application/json",
+  ...(options.headers || {})
 }
 
+});
 
-/* =========================
-   NAVIGATION
-========================= */
+const data = await response.json();
+
+if (!response.ok || data.ok === false) {
+throw new Error(
+data.error || "Ошибка API"
+);
+}
+
+return data;
+}
+
+/* =====================================================
+NAVIGATION
+===================================================== */
 
 function showPage(page) {
-  document.querySelectorAll(".page").forEach(el => {
-    el.classList.remove("active");
-  });
 
-  const target = document.getElementById(page);
+document
+.querySelectorAll(".page")
+.forEach(element => {
+element.classList.remove("active");
+});
 
-  if (!target) return;
+const target =
+document.getElementById(page);
 
-  target.classList.add("active");
-
-  document.querySelectorAll(".bottom-nav button").forEach(btn => {
-    btn.classList.remove("active");
-  });
-
-  const button = document.querySelector(
-    `.bottom-nav button[data-page="${page}"]`
-  );
-
-  if (button) {
-    button.classList.add("active");
-  }
-
-  if (page === "inventory") loadInventory();
-  if (page === "tasks") loadTasks();
-  if (page === "cases") loadCases();
-  if (page === "referrals") loadReferrals();
-  if (page === "rating") loadLeaderboard("coins");
+if (!target) {
+console.error(
+"Страница не найдена:",
+page
+);
+return;
 }
 
+target.classList.add("active");
 
-/* =========================
-   USER
-========================= */
+document
+.querySelectorAll(".bottom-nav button")
+.forEach(button => {
+button.classList.remove("active");
+});
+
+const activeButton =
+document.querySelector(
+".bottom-nav button[data-page="${page}"]"
+);
+
+if (activeButton) {
+activeButton.classList.add("active");
+}
+
+if (page === "cases") {
+loadCases().catch(console.error);
+}
+
+if (page === "tasks") {
+loadTasks().catch(console.error);
+}
+
+if (page === "inventory") {
+loadInventory().catch(console.error);
+}
+
+if (page === "referrals") {
+loadReferrals().catch(console.error);
+}
+
+if (page === "ranking") {
+loadRanking("coins").catch(console.error);
+}
+
+}
+
+/* =====================================================
+USER
+===================================================== */
 
 async function loadUser() {
-  const user = getTelegramUser();
 
-  const data = await api("/user", {
-    method: "POST",
-    body: JSON.stringify({
-      id: user.id,
-      username: user.username || null,
-      first_name: user.first_name || null
-    })
-  });
+const user =
+getTelegramUser();
 
-  currentUser = data.user;
+const data =
+await api("/user", {
+method: "POST",
 
-  updateBalance();
+  body: JSON.stringify({
 
-  const username = document.getElementById("username");
-  const telegramId = document.getElementById("telegramId");
-  const avatar = document.getElementById("avatar");
+    id: user.id,
 
-  if (username) {
-    username.textContent = currentUser.username
-      ? "@" + currentUser.username
-      : currentUser.first_name || "Пользователь";
-  }
+    username:
+      user.username || null,
 
-  if (telegramId) {
-    telegramId.textContent = "ID: " + currentUser.id;
-  }
+    first_name:
+      user.first_name || null
 
-  if (avatar) {
-    avatar.textContent =
-      (currentUser.first_name || "U")
-        .charAt(0)
-        .toUpperCase();
-  }
+  })
+});
+
+currentUser =
+data.user;
+
+updateUserBalance();
+
+const username =
+document.getElementById(
+"username"
+);
+
+if (username) {
+
+username.textContent =
+  currentUser.username
+    ? "@" + currentUser.username
+    : currentUser.first_name ||
+      "Пользователь";
+
 }
 
+const telegramId =
+document.getElementById(
+"telegramId"
+);
 
-/* =========================
-   BALANCE
-========================= */
+if (telegramId) {
 
-function updateBalance() {
-  if (!currentUser) return;
+telegramId.textContent =
+  "ID: " + currentUser.id;
 
-  const coins = Number(currentUser.coins || 0);
-  const stars = Number(currentUser.balance || 0);
+}
 
-  const elements = [
-    ["coins", coins],
-    ["tasksCoins", coins],
-    ["profileCoins", coins],
-    ["balance", stars],
-    ["profileBalance", stars]
-  ];
+const avatar =
+document.getElementById(
+"avatar"
+);
 
-  elements.forEach(([id, value]) => {
-    const element = document.getElementById(id);
+if (avatar) {
 
-    if (element) {
-      element.textContent = value;
-    }
-  });
+avatar.textContent =
+  (
+    currentUser.first_name ||
+    "U"
+  )
+    .charAt(0)
+    .toUpperCase();
+
+}
+
+}
+
+/* =====================================================
+BALANCES
+===================================================== */
+
+function updateUserBalance() {
+
+if (!currentUser) {
+return;
+}
+
+const stars =
+Number(
+currentUser.balance || 0
+);
+
+const coins =
+Number(
+currentUser.coins || 0
+);
+
+const balance =
+document.getElementById(
+"balance"
+);
+
+if (balance) {
+balance.textContent = stars;
+}
+
+const profileBalance =
+document.getElementById(
+"profileBalance"
+);
+
+if (profileBalance) {
+profileBalance.textContent =
+stars;
+}
+
+const coinsElement =
+document.getElementById(
+"coins"
+);
+
+if (coinsElement) {
+coinsElement.textContent =
+coins;
+}
+
+const profileCoins =
+document.getElementById(
+"profileCoins"
+);
+
+if (profileCoins) {
+profileCoins.textContent =
+coins;
+}
+
+const tasksCoins =
+document.getElementById(
+"tasksCoins"
+);
+
+if (tasksCoins) {
+tasksCoins.textContent =
+coins;
+}
+
 }
 
 async function loadCoins() {
-  if (!currentUser) return;
 
-  const data = await api(
-    "/coins?user_id=" +
-    encodeURIComponent(currentUser.id)
-  );
-
-  currentUser.coins = Number(data.coins || 0);
-
-  updateBalance();
+if (!currentUser) {
+return;
 }
 
+const data =
+await api(
+"/coins?user_id=" +
+encodeURIComponent(
+currentUser.id
+)
+);
 
-/* =========================
-   GIFTS
-========================= */
+currentUser.coins =
+Number(
+data.coins || 0
+);
 
-async function loadGifts() {
-  const data = await api("/gifts");
-
-  gifts = data.gifts || [];
-
-  renderGifts();
+updateUserBalance();
 }
 
-function renderGifts() {
-  const container = document.getElementById("gifts");
-
-  if (!container) return;
-
-  if (!gifts.length) {
-    container.innerHTML =
-      `<div class="empty">🎁 Подарков пока нет</div>`;
-    return;
-  }
-
-  container.innerHTML = gifts.map(gift => `
-    <div class="gift-card">
-      <div class="gift-icon">
-        ${escapeHtml(gift.emoji || "🎁")}
-      </div>
-
-      <div class="gift-name">
-        ${escapeHtml(gift.name)}
-      </div>
-
-      <div class="gift-description">
-        ${escapeHtml(
-          gift.description || "Коллекционный подарок"
-        )}
-      </div>
-
-      <div class="gift-bottom">
-        <span class="price">
-          ⭐ ${Number(gift.price || 0)}
-        </span>
-      </div>
-    </div>
-  `).join("");
-}
-
-
-/* =========================
-   CASES
-========================= */
+/* =====================================================
+CASES
+===================================================== */
 
 async function loadCases() {
-  const container = document.getElementById("casesList");
 
-  if (!container) return;
+const container =
+document.getElementById(
+"casesList"
+);
 
-  container.innerHTML =
-    `<div class="empty">⏳ Загружаем кейсы...</div>`;
+if (!container) {
+return;
+}
 
-  try {
-    const data = await api("/cases");
+container.innerHTML =
+"<div class="empty"> ⏳ Загружаем кейсы... </div>";
 
-    cases = data.cases || [];
+try {
 
-    renderCases();
-  } catch (error) {
-    container.innerHTML =
-      `<div class="empty">❌ ${escapeHtml(error.message)}</div>`;
-  }
+const data =
+  await api("/cases");
+
+cases =
+  data.cases || [];
+
+
+renderCases();
+renderPopularCases();
+
+} catch (error) {
+
+console.error(
+  error
+);
+
+container.innerHTML =
+  `<div class="empty">
+    ❌ Не удалось загрузить кейсы
+  </div>`;
+
+}
+
 }
 
 function renderCases() {
-  const container = document.getElementById("casesList");
 
-  if (!container) return;
+const container =
+document.getElementById(
+"casesList"
+);
 
-  if (!cases.length) {
-    container.innerHTML =
-      `<div class="empty">🎁 Кейсов пока нет</div>`;
-    return;
-  }
-
-  container.innerHTML = cases.map(item => `
-    <div class="case-card">
-      <div class="case-icon">🎁</div>
-
-      <div class="case-name">
-        ${escapeHtml(item.name)}
-      </div>
-
-      <div class="case-description">
-        Несколько подарков с разными шансами
-      </div>
-
-      <button
-        class="primary"
-        onclick="openCaseInfo(${Number(item.id)})">
-        Открыть
-      </button>
-    </div>
-  `).join("");
+if (!container) {
+return;
 }
 
-async function openCaseInfo(caseId) {
-  try {
-    const data = await api(
-      "/case?case_id=" + encodeURIComponent(caseId)
-    );
+if (!cases.length) {
 
-    currentCaseItems = data.items || [];
+container.innerHTML =
+  `<div class="empty">
+    🎁 Кейсов пока нет
+  </div>`;
 
-    const selected = cases.find(
-      item => Number(item.id) === Number(caseId)
-    );
+return;
 
-    if (!selected) return;
+}
 
-    let text =
-      `🎁 ${selected.name}\n\n` +
-      `Предметы:\n\n`;
+container.innerHTML =
+cases
+.map(gameCase => {
 
-    currentCaseItems.forEach(item => {
-      text +=
-        `${item.emoji || "🎁"} ${item.name} — ` +
-        `${Number(item.chance)}%\n`;
-    });
+    const isStars =
+      gameCase.type === "stars";
 
-    text +=
-      `\nОткрытие выполняется за Coins.`;
 
-    if (tg?.showPopup) {
-      tg.showPopup({
-        title: selected.name,
-        message: text,
-        buttons: [
-          {
-            id: "open",
-            type: "default",
-            text: "Открыть"
-          },
-          {
-            type: "cancel",
-            text: "Закрыть"
-          }
-        ]
-      }, async id => {
-        if (id === "open") {
-          await openCoinCase(caseId);
-        }
-      });
-    } else {
-      if (confirm(text + "\n\nОткрыть?")) {
-        await openCoinCase(caseId);
-      }
+    const price =
+      isStars
+        ? `⭐ ${Number(gameCase.stars_price || 0)}`
+        : `🪙 ${Number(gameCase.price_coins || 0)}`;
+
+
+    return `
+
+      <div class="case-card">
+
+        <div class="case-icon">
+
+          ${escapeHtml(
+            gameCase.emoji ||
+            "🎁"
+          )}
+
+        </div>
+
+
+        <div class="case-name">
+
+          ${escapeHtml(
+            gameCase.name
+          )}
+
+        </div>
+
+
+        <div class="case-description">
+
+          ${escapeHtml(
+            gameCase.description ||
+            "Открой кейс и получи подарок"
+          )}
+
+        </div>
+
+
+        <div class="case-price">
+
+          ${price}
+
+        </div>
+
+
+        <button
+          class="primary"
+          onclick="openCaseDetails(${Number(gameCase.id)})">
+
+          ${isStars
+            ? "⭐ Подробнее"
+            : "🎁 Открыть"}
+
+        </button>
+
+      </div>
+
+    `;
+
+  })
+  .join("");
+
+}
+
+function renderPopularCases() {
+
+const container =
+document.getElementById(
+"popularCases"
+);
+
+if (!container) {
+return;
+}
+
+const popular =
+cases.slice(0, 3);
+
+if (!popular.length) {
+
+container.innerHTML =
+  `<div class="empty">
+    🎁 Кейсов пока нет
+  </div>`;
+
+return;
+
+}
+
+container.innerHTML =
+popular
+.map(gameCase => {
+
+    const price =
+      gameCase.type === "stars"
+        ? `⭐ ${Number(gameCase.stars_price || 0)}`
+        : `🪙 ${Number(gameCase.price_coins || 0)}`;
+
+
+    return `
+
+      <div class="case-card">
+
+        <div class="case-icon">
+
+          ${escapeHtml(
+            gameCase.emoji ||
+            "🎁"
+          )}
+
+        </div>
+
+
+        <div class="case-name">
+
+          ${escapeHtml(
+            gameCase.name
+          )}
+
+        </div>
+
+
+        <div class="case-price">
+
+          ${price}
+
+        </div>
+
+
+        <button
+          class="primary"
+          onclick="openCaseDetails(${Number(gameCase.id)})">
+
+          Открыть
+
+        </button>
+
+      </div>
+
+    `;
+
+  })
+  .join("");
+
+}
+
+/* =====================================================
+CASE DETAILS
+===================================================== */
+
+async function openCaseDetails(caseId) {
+
+const gameCase =
+cases.find(
+item =>
+Number(item.id) ===
+Number(caseId)
+);
+
+if (!gameCase) {
+return;
+}
+
+currentCase =
+gameCase;
+
+showPage(
+"caseDetails"
+);
+
+const container =
+document.getElementById(
+"caseDetailsContent"
+);
+
+container.innerHTML =
+"<div class="empty"> ⏳ Загружаем награды... </div>";
+
+try {
+
+const data =
+  await api(
+    "/cases/items?case_id=" +
+    encodeURIComponent(
+      caseId
+    )
+  );
+
+
+const items =
+  data.items || [];
+
+
+renderCaseDetails(
+  gameCase,
+  items
+);
+
+} catch (error) {
+
+console.error(
+  error
+);
+
+container.innerHTML =
+  `<div class="empty">
+    ❌ Не удалось загрузить содержимое кейса
+  </div>`;
+
+}
+
+}
+
+function renderCaseDetails(
+gameCase,
+items
+) {
+
+const container =
+document.getElementById(
+"caseDetailsContent"
+);
+
+const isStars =
+gameCase.type === "stars";
+
+const price =
+isStars
+? "⭐ ${Number(gameCase.stars_price || 0)}"
+: "🪙 ${Number(gameCase.price_coins || 0)}";
+
+const button =
+isStars
+
+  ? `
+    <button
+      class="primary"
+      disabled
+      style="opacity:.55">
+
+      ⭐ Stars-покупка
+
+    </button>
+
+    <p class="notice">
+      Для Stars будет сделана
+      гарантированная покупка,
+      а не случайное выпадение.
+    </p>
+  `
+
+  : `
+    <button
+      class="primary open-case-button"
+      onclick="openCase(${Number(gameCase.id)})">
+
+      🎁 Открыть за
+      🪙 ${Number(gameCase.price_coins || 0)}
+
+    </button>
+  `;
+
+container.innerHTML = `
+
+<div class="case-detail">
+
+  <div class="big-case-icon">
+
+    ${escapeHtml(
+      gameCase.emoji ||
+      "🎁"
+    )}
+
+  </div>
+
+
+  <h1>
+
+    ${escapeHtml(
+      gameCase.name
+    )}
+
+  </h1>
+
+
+  <p>
+
+    ${escapeHtml(
+      gameCase.description ||
+      "Открой кейс и получи случайный подарок"
+    )}
+
+  </p>
+
+
+  <div class="case-detail-price">
+
+    ${price}
+
+  </div>
+
+
+  <div class="case-items-title">
+
+    🎁 Возможные награды
+
+  </div>
+
+
+  <div class="case-rewards">
+
+    ${
+      items.length
+
+        ? items
+            .map(item => `
+
+              <div class="reward-card">
+
+                <div class="reward-icon">
+
+                  ${escapeHtml(
+                    item.emoji ||
+                    "🎁"
+                  )}
+
+                </div>
+
+
+                <div class="reward-info">
+
+                  <b>
+
+                    ${escapeHtml(
+                      item.name
+                    )}
+
+                  </b>
+
+
+                  <span>
+
+                    ${Number(
+                      item.chance || 0
+                    )}% шанс
+
+                  </span>
+
+
+                  <small>
+
+                    Цена:
+                    ${Number(
+                      item.price || 0
+                    )}
+
+                  </small>
+
+                </div>
+
+              </div>
+
+            `)
+            .join("")
+
+        : `
+          <div class="empty">
+            Наград пока нет
+          </div>
+        `
     }
 
-  } catch (error) {
-    showMessage("Ошибка", error.message);
-  }
+  </div>
+
+
+  ${button}
+
+</div>
+
+`;
+
 }
 
-async function openCoinCase(caseId) {
-  if (!currentUser) return;
+/* =====================================================
+OPEN CASE
+===================================================== */
 
-  try {
-    const data = await api("/cases/open", {
+async function openCase(caseId) {
+
+if (!currentUser) {
+return;
+}
+
+const gameCase =
+cases.find(
+item =>
+Number(item.id) ===
+Number(caseId)
+);
+
+if (!gameCase) {
+return;
+}
+
+if (gameCase.type !== "coins") {
+
+showMessage(
+  "⭐ Stars",
+  "Этот кейс сейчас не открывается за Coins."
+);
+
+return;
+
+}
+
+const price =
+Number(
+gameCase.price_coins || 0
+);
+
+if (
+Number(currentUser.coins || 0) <
+price
+) {
+
+showMessage(
+  "Недостаточно Coins",
+  `Нужно 🪙 ${price} Coins`
+);
+
+return;
+
+}
+
+try {
+
+const data =
+  await api(
+    "/cases/open",
+    {
       method: "POST",
+
       body: JSON.stringify({
-        user_id: currentUser.id,
-        case_id: caseId
+
+        user_id:
+          currentUser.id,
+
+        case_id:
+          caseId
+
       })
-    });
+    }
+  );
 
-    currentUser.coins =
-      Number(data.coins || 0);
 
-    updateBalance();
+currentUser.coins =
+  Number(
+    data.coins || 0
+  );
 
-    await loadInventory();
 
-    showMessage(
-      "🎉 Поздравляем!",
-      `${data.reward.emoji || "🎁"} ${data.reward.name}\n\n` +
-      `Предмет добавлен в инвентарь.`
-    );
+updateUserBalance();
 
-  } catch (error) {
-    showMessage(
-      "Не удалось открыть",
-      error.message
-    );
-  }
+
+showReward(
+  data.reward
+);
+
+} catch (error) {
+
+console.error(
+  error
+);
+
+
+showMessage(
+  "Ошибка",
+  error.message ||
+  "Не удалось открыть кейс"
+);
+
 }
 
+}
 
-/* =========================
-   TASKS
-========================= */
+function showReward(reward) {
+
+const message =
+
+`${reward.emoji || "🎁"} ${reward.name}\n\n` +
+
+`Стоимость: ${Number(
+  reward.price || 0
+)}\n\n` +
+
+`Шанс: ${Number(
+  reward.chance || 0
+)}%`;
+
+showMessage(
+"🎉 Кейс открыт!",
+message
+);
+
+loadInventory().catch(
+console.error
+);
+
+}
+
+/* =====================================================
+TASKS
+===================================================== */
 
 async function loadTasks() {
-  if (!currentUser) return;
 
-  const container = document.getElementById("tasksList");
+if (!currentUser) {
+return;
+}
 
-  if (!container) return;
+const container =
+document.getElementById(
+"tasksList"
+);
 
-  try {
-    const data = await api(
-      "/tasks?user_id=" +
-      encodeURIComponent(currentUser.id)
-    );
+if (!container) {
+return;
+}
 
-    tasks = data.tasks || [];
+container.innerHTML =
+"<div class="empty"> ⏳ Загружаем задания... </div>";
 
-    renderTasks();
+try {
 
-    await loadCoins();
-  } catch (error) {
-    container.innerHTML =
-      `<div class="empty">❌ Не удалось загрузить задания</div>`;
-  }
+const data =
+  await api(
+    "/tasks?user_id=" +
+    encodeURIComponent(
+      currentUser.id
+    )
+  );
+
+
+tasks =
+  data.tasks || [];
+
+
+renderTasks();
+
+
+await loadCoins();
+
+} catch (error) {
+
+console.error(
+  error
+);
+
+
+container.innerHTML =
+  `<div class="empty">
+    ❌ Не удалось загрузить задания
+  </div>`;
+
+}
+
 }
 
 function renderTasks() {
-  const container = document.getElementById("tasksList");
 
-  if (!container) return;
+const container =
+document.getElementById(
+"tasksList"
+);
 
-  if (!tasks.length) {
-    container.innerHTML =
-      `<div class="empty">🎯 Сейчас нет заданий</div>`;
-    return;
-  }
+if (!container) {
+return;
+}
 
-  container.innerHTML = tasks.map(task => {
+if (!tasks.length) {
+
+container.innerHTML =
+  `<div class="empty">
+    🎯 Сейчас нет доступных заданий
+  </div>`;
+
+return;
+
+}
+
+container.innerHTML =
+tasks
+.map(task => {
+
     const completed =
       Number(task.completed) === 1;
 
-    return `
-      <div class="task-card">
-        <div class="task-icon">🎯</div>
 
-        <div class="task-title">
-          ${escapeHtml(task.title)}
+    return `
+
+      <div class="gift-card">
+
+        <div class="gift-icon">
+          🎯
         </div>
 
-        <div class="task-description">
+
+        <div class="gift-name">
+
+          ${escapeHtml(
+            task.title
+          )}
+
+        </div>
+
+
+        <div class="gift-description">
+
           ${escapeHtml(
             task.description ||
-            "Выполни задание"
+            "Выполни задание и получи награду"
           )}
+
         </div>
+
 
         <div class="price">
-          🪙 +${Number(task.reward || 0)}
+
+          🪙 +${Number(
+            task.reward || 0
+          )}
+
         </div>
 
-        ${
-          completed
-            ? `
-              <button class="buy" disabled>
-                ✓ Получено
-              </button>
-            `
-            : `
-              <button
-                class="primary"
-                onclick="completeTask(${Number(task.id)})">
-                Получить
-              </button>
-            `
-        }
+
+        <div class="gift-bottom">
+
+          ${
+            completed
+
+              ? `
+                <button
+                  class="buy"
+                  disabled
+                  style="opacity:.5">
+
+                  ✓ Получено
+
+                </button>
+              `
+
+              : `
+
+                <button
+                  class="buy"
+                  onclick="completeTask(${Number(task.id)})">
+
+                  Получить
+
+                </button>
+
+              `
+          }
+
+        </div>
+
       </div>
+
     `;
-  }).join("");
+
+  })
+  .join("");
+
 }
 
 async function completeTask(taskId) {
-  try {
-    const data = await api(
-      "/tasks/complete",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          user_id: currentUser.id,
-          task_id: taskId
-        })
-      }
-    );
 
-    currentUser.coins =
-      Number(data.coins || 0);
-
-    updateBalance();
-
-    showMessage(
-      "🎉 Награда",
-      `Получено 🪙 ${data.reward}`
-    );
-
-    await loadTasks();
-
-  } catch (error) {
-    showMessage(
-      "Ошибка",
-      error.message
-    );
-  }
+if (!currentUser) {
+return;
 }
 
+try {
 
-/* =========================
-   INVENTORY
-========================= */
+const data =
+  await api(
+    "/tasks/complete",
+    {
+      method: "POST",
 
-async function loadInventory() {
-  if (!currentUser) return;
+      body: JSON.stringify({
 
-  const data = await api(
-    "/inventory?user_id=" +
-    encodeURIComponent(currentUser.id)
+        user_id:
+          currentUser.id,
+
+        task_id:
+          taskId
+
+      })
+    }
   );
 
-  inventory = data.inventory || [];
 
-  renderInventory();
+currentUser.coins =
+  Number(
+    data.coins || 0
+  );
 
-  const count =
-    document.getElementById("inventoryCount");
 
-  if (count) {
-    count.textContent = inventory.length;
-  }
+updateUserBalance();
+
+
+showMessage(
+  "🎉 Награда",
+  `Получено 🪙 ${data.reward} Coins`
+);
+
+
+await loadTasks();
+
+} catch (error) {
+
+showMessage(
+  "Ошибка",
+  error.message ||
+  "Не удалось получить награду"
+);
+
+}
+
+}
+
+/* =====================================================
+INVENTORY
+===================================================== */
+
+async function loadInventory() {
+
+if (!currentUser) {
+return;
+}
+
+const data =
+await api(
+"/inventory?user_id=" +
+encodeURIComponent(
+currentUser.id
+)
+);
+
+inventory =
+data.inventory || [];
+
+renderInventory();
+
+const count =
+document.getElementById(
+"inventoryCount"
+);
+
+if (count) {
+count.textContent =
+inventory.length;
+}
+
 }
 
 function renderInventory() {
-  const container =
-    document.getElementById("inventoryList");
 
-  if (!container) return;
+const container =
+document.getElementById(
+"inventoryList"
+);
 
-  if (!inventory.length) {
-    container.innerHTML =
-      `<div class="empty">🎒 Инвентарь пуст</div>`;
-    return;
-  }
+if (!container) {
+return;
+}
 
-  container.innerHTML = inventory.map(item => `
+if (!inventory.length) {
+
+container.innerHTML =
+  `<div class="empty">
+    🎒 Инвентарь пока пуст
+  </div>`;
+
+return;
+
+}
+
+container.innerHTML =
+inventory
+.map(item => `
+
     <div class="gift-card">
+
       <div class="gift-icon">
-        ${escapeHtml(item.emoji || "🎁")}
+
+        ${escapeHtml(
+          item.emoji ||
+          "🎁"
+        )}
+
       </div>
+
 
       <div class="gift-name">
-        ${escapeHtml(item.name)}
+
+        ${escapeHtml(
+          item.name
+        )}
+
       </div>
+
 
       <div class="gift-description">
-        ${escapeHtml(item.description || "")}
+
+        ${escapeHtml(
+          item.description ||
+          ""
+        )}
+
       </div>
 
+
       <div class="price">
-        ⭐ ${Number(item.price || 0)}
+
+        ⭐ ${Number(
+          item.price || 0
+        )}
+
       </div>
+
     </div>
-  `).join("");
+
+  `)
+  .join("");
+
+}
+
+/* =====================================================
+REFERRALS
+===================================================== */
+
+async function loadReferrals() {
+
+if (!currentUser) {
+return;
+}
+
+try {
+
+const data =
+  await api(
+    "/referrals?user_id=" +
+    encodeURIComponent(
+      currentUser.id
+    )
+  );
+
+
+const link =
+  document.getElementById(
+    "refLink"
+  );
+
+
+if (link) {
+  link.textContent =
+    data.link;
 }
 
 
-/* =========================
-   REFERRALS
-========================= */
+const count =
+  document.getElementById(
+    "referralCount"
+  );
 
-async function loadReferrals() {
-  if (!currentUser) return;
 
-  try {
-    const data = await api(
-      "/referrals?user_id=" +
-      encodeURIComponent(currentUser.id)
+if (count) {
+  count.textContent =
+    Number(
+      data.count || 0
     );
+}
 
-    const link =
-      document.getElementById("refLink");
+} catch (error) {
 
-    const count =
-      document.getElementById("refCount");
+console.error(
+  error
+);
 
-    if (link) {
-      link.textContent = data.link;
-    }
+}
 
-    if (count) {
-      count.textContent = data.count;
-    }
-
-  } catch (error) {
-    console.error(error);
-  }
 }
 
 async function copyReferral() {
-  const element =
-    document.getElementById("refLink");
 
-  if (!element) return;
+const element =
+document.getElementById(
+"refLink"
+);
 
-  try {
-    await navigator.clipboard.writeText(
-      element.textContent
-    );
-
-    showMessage(
-      "Готово",
-      "Ссылка скопирована"
-    );
-
-  } catch {
-    alert(element.textContent);
-  }
+if (!element) {
+return;
 }
 
+const link =
+element.textContent;
 
-/* =========================
-   LEADERBOARD
-========================= */
+try {
 
-async function loadLeaderboard(type) {
-  const container =
-    document.getElementById("leaderboard");
+await navigator.clipboard
+  .writeText(link);
 
-  if (!container) return;
+
+showMessage(
+  "Готово",
+  "Реферальная ссылка скопирована"
+);
+
+} catch {
+
+alert(link);
+
+}
+
+}
+
+/* =====================================================
+RANKING
+===================================================== */
+
+async function loadRanking(
+type = "coins",
+button = null
+) {
+
+const container =
+document.getElementById(
+"rankingList"
+);
+
+if (!container) {
+return;
+}
+
+if (button) {
+
+document
+  .querySelectorAll(
+    ".ranking-tab"
+  )
+  .forEach(
+    element =>
+      element.classList.remove(
+        "active"
+      )
+  );
+
+
+button.classList.add(
+  "active"
+);
+
+}
+
+container.innerHTML =
+"<div class="empty"> ⏳ Загружаем рейтинг... </div>";
+
+try {
+
+const data =
+  await api(
+    "/ranking?type=" +
+    encodeURIComponent(
+      type
+    )
+  );
+
+
+const ranking =
+  data.ranking || [];
+
+
+if (!ranking.length) {
 
   container.innerHTML =
-    `<div class="empty">⏳ Загружаем рейтинг...</div>`;
+    `<div class="empty">
+      🏆 Пока нет участников
+    </div>`;
 
-  try {
-    const data = await api(
-      "/leaderboard?type=" + encodeURIComponent(type)
-    );
+  return;
+}
 
-    if (!data.leaderboard.length) {
-      container.innerHTML =
-        `<div class="empty">🏆 Пока нет игроков</div>`;
-      return;
+
+container.innerHTML =
+  ranking
+    .map(
+      (player, index) => {
+
+        const name =
+          player.username
+            ? "@" +
+              player.username
+            : player.first_name ||
+              "Игрок";
+
+
+        const score =
+          Number(
+            player.score || 0
+          );
+
+
+        return `
+
+          <div class="ranking-item">
+
+            <div class="ranking-place">
+
+              ${
+                index === 0
+                  ? "🥇"
+                  : index === 1
+                  ? "🥈"
+                  : index === 2
+                  ? "🥉"
+                  : "#" +
+                    (index + 1)
+              }
+
+            </div>
+
+
+            <div class="ranking-name">
+
+              ${escapeHtml(
+                name
+              )}
+
+            </div>
+
+
+            <div class="ranking-score">
+
+              ${
+                type === "coins"
+                  ? "🪙 "
+                  : "🎁 "
+              }
+
+              ${score}
+
+            </div>
+
+          </div>
+
+        `;
+
+      }
+    )
+    .join("");
+
+} catch (error) {
+
+console.error(
+  error
+);
+
+
+container.innerHTML =
+  `<div class="empty">
+    ❌ Ошибка загрузки рейтинга
+  </div>`;
+
+}
+
+}
+
+/* =====================================================
+POPUP
+===================================================== */
+
+function showMessage(
+title,
+message
+) {
+
+if (tg?.showPopup) {
+
+tg.showPopup({
+
+  title,
+
+  message,
+
+  buttons: [
+    {
+      type: "ok",
+      text: "OK"
     }
+  ]
 
-    container.innerHTML =
-      data.leaderboard.map((user, index) => `
-        <div class="leader-row">
+});
 
-          <div class="leader-place">
-            #${index + 1}
-          </div>
+} else {
 
-          <div class="leader-name">
-            ${
-              user.username
-                ? "@" + escapeHtml(user.username)
-                : escapeHtml(
-                    user.first_name || "Игрок"
-                  )
-            }
-          </div>
+alert(
+  title +
+  "\n\n" +
+  message
+);
 
-          <div class="leader-score">
-            ${Number(user.score || 0)}
-          </div>
-
-        </div>
-      `).join("");
-
-  } catch (error) {
-    container.innerHTML =
-      `<div class="empty">❌ ${escapeHtml(error.message)}</div>`;
-  }
 }
 
-
-/* =========================
-   POPUP
-========================= */
-
-function showMessage(title, message) {
-  if (tg?.showPopup) {
-    tg.showPopup({
-      title,
-      message,
-      buttons: [
-        {
-          type: "ok",
-          text: "OK"
-        }
-      ]
-    });
-  } else {
-    alert(title + "\n\n" + message);
-  }
 }
 
-
-/* =========================
-   HTML ESCAPE
-========================= */
+/* =====================================================
+HTML SECURITY
+===================================================== */
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+
+return String(value)
+
+.replaceAll(
+  "&",
+  "&amp;"
+)
+
+.replaceAll(
+  "<",
+  "&lt;"
+)
+
+.replaceAll(
+  ">",
+  "&gt;"
+)
+
+.replaceAll(
+  '"',
+  "&quot;"
+)
+
+.replaceAll(
+  "'",
+  "&#039;"
+);
+
 }
 
-
-/* =========================
-   INIT
-========================= */
+/* =====================================================
+INIT
+===================================================== */
 
 async function init() {
-  try {
-    await loadUser();
-    await loadGifts();
-    await loadInventory();
-    await loadCoins();
-    await loadCases();
-    await loadReferrals();
 
-    showPage("home");
+try {
 
-  } catch (error) {
-    console.error(
-      "Ошибка запуска:",
-      error
-    );
-  }
+await loadUser();
+
+await loadGifts();
+
+await loadCases();
+
+await loadInventory();
+
+await loadCoins();
+
+showPage("home");
+
+} catch (error) {
+
+console.error(
+  "Ошибка запуска:",
+  error
+);
+
+
+showMessage(
+  "Ошибка",
+  "Не удалось загрузить приложение"
+);
+
+}
+
 }
 
 document.addEventListener(
-  "DOMContentLoaded",
-  init
+"DOMContentLoaded",
+init
 );
