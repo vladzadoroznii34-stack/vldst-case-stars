@@ -8,21 +8,21 @@ if (tg) {
 const API = "/api";
 
 let currentUser = null;
+let gifts = [];
+let inventory = [];
+let tasks = [];
 let cases = [];
-let currentCase = null;
+let currentCaseItems = [];
 
 
 /* =========================
-   TELEGRAM USER
+   TELEGRAM
 ========================= */
 
 function getTelegramUser() {
-
   const user = tg?.initDataUnsafe?.user;
 
-  if (user) {
-    return user;
-  }
+  if (user) return user;
 
   return {
     id: 100000001,
@@ -37,25 +37,18 @@ function getTelegramUser() {
 ========================= */
 
 async function api(path, options = {}) {
-
-  const response = await fetch(
-    API + path,
-    {
-      ...options,
-
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {})
-      }
+  const response = await fetch(API + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
     }
-  );
+  });
 
   const data = await response.json();
 
   if (!response.ok || data.ok === false) {
-    throw new Error(
-      data.error || "Ошибка API"
-    );
+    throw new Error(data.error || "Ошибка API");
   }
 
   return data;
@@ -67,60 +60,33 @@ async function api(path, options = {}) {
 ========================= */
 
 function showPage(page) {
+  document.querySelectorAll(".page").forEach(el => {
+    el.classList.remove("active");
+  });
 
-  document
-    .querySelectorAll(".page")
-    .forEach(element => {
-      element.classList.remove("active");
-    });
+  const target = document.getElementById(page);
 
-  const target =
-    document.getElementById(page);
-
-  if (!target) {
-    console.error(
-      "Страница не найдена:",
-      page
-    );
-    return;
-  }
+  if (!target) return;
 
   target.classList.add("active");
 
-  document
-    .querySelectorAll(".bottom-nav button")
-    .forEach(button => {
-      button.classList.remove("active");
-    });
+  document.querySelectorAll(".bottom-nav button").forEach(btn => {
+    btn.classList.remove("active");
+  });
 
-  const activeButton =
-    document.querySelector(
-      `.bottom-nav button[data-page="${page}"]`
-    );
+  const button = document.querySelector(
+    `.bottom-nav button[data-page="${page}"]`
+  );
 
-  if (activeButton) {
-    activeButton.classList.add("active");
+  if (button) {
+    button.classList.add("active");
   }
 
-  if (page === "cases") {
-    loadCases();
-  }
-
-  if (page === "tasks") {
-    loadTasks();
-  }
-
-  if (page === "inventory") {
-    loadInventory();
-  }
-
-  if (page === "referrals") {
-    loadReferrals();
-  }
-
-  if (page === "ranking") {
-    loadRanking("coins");
-  }
+  if (page === "inventory") loadInventory();
+  if (page === "tasks") loadTasks();
+  if (page === "cases") loadCases();
+  if (page === "referrals") loadReferrals();
+  if (page === "rating") loadLeaderboard("coins");
 }
 
 
@@ -129,53 +95,41 @@ function showPage(page) {
 ========================= */
 
 async function loadUser() {
+  const user = getTelegramUser();
 
-  const user =
-    getTelegramUser();
+  const data = await api("/user", {
+    method: "POST",
+    body: JSON.stringify({
+      id: user.id,
+      username: user.username || null,
+      first_name: user.first_name || null
+    })
+  });
 
-  const data =
-    await api(
-      "/user",
-      {
-        method: "POST",
-
-        body: JSON.stringify({
-          id: user.id,
-          username:
-            user.username || null,
-          first_name:
-            user.first_name || null
-        })
-      }
-    );
-
-  currentUser =
-    data.user;
+  currentUser = data.user;
 
   updateBalance();
 
-  document
-    .getElementById("username")
-    .textContent =
-      currentUser.username
-        ? "@" + currentUser.username
-        : currentUser.first_name ||
-          "Пользователь";
+  const username = document.getElementById("username");
+  const telegramId = document.getElementById("telegramId");
+  const avatar = document.getElementById("avatar");
 
-  document
-    .getElementById("telegramId")
-    .textContent =
-      "ID: " + currentUser.id;
+  if (username) {
+    username.textContent = currentUser.username
+      ? "@" + currentUser.username
+      : currentUser.first_name || "Пользователь";
+  }
 
-  document
-    .getElementById("avatar")
-    .textContent =
-      (
-        currentUser.first_name ||
-        "U"
-      )
+  if (telegramId) {
+    telegramId.textContent = "ID: " + currentUser.id;
+  }
+
+  if (avatar) {
+    avatar.textContent =
+      (currentUser.first_name || "U")
         .charAt(0)
         .toUpperCase();
+  }
 }
 
 
@@ -184,54 +138,88 @@ async function loadUser() {
 ========================= */
 
 function updateBalance() {
+  if (!currentUser) return;
 
-  if (!currentUser) {
-    return;
-  }
-
-  const coins =
-    Number(
-      currentUser.coins || 0
-    );
+  const coins = Number(currentUser.coins || 0);
+  const stars = Number(currentUser.balance || 0);
 
   const elements = [
-    "coins",
-    "tasksCoins",
-    "profileCoins"
+    ["coins", coins],
+    ["tasksCoins", coins],
+    ["profileCoins", coins],
+    ["balance", stars],
+    ["profileBalance", stars]
   ];
 
-  elements.forEach(id => {
-
-    const element =
-      document.getElementById(id);
+  elements.forEach(([id, value]) => {
+    const element = document.getElementById(id);
 
     if (element) {
-      element.textContent =
-        coins;
+      element.textContent = value;
     }
-
   });
 }
 
-
 async function loadCoins() {
+  if (!currentUser) return;
 
-  if (!currentUser) {
+  const data = await api(
+    "/coins?user_id=" +
+    encodeURIComponent(currentUser.id)
+  );
+
+  currentUser.coins = Number(data.coins || 0);
+
+  updateBalance();
+}
+
+
+/* =========================
+   GIFTS
+========================= */
+
+async function loadGifts() {
+  const data = await api("/gifts");
+
+  gifts = data.gifts || [];
+
+  renderGifts();
+}
+
+function renderGifts() {
+  const container = document.getElementById("gifts");
+
+  if (!container) return;
+
+  if (!gifts.length) {
+    container.innerHTML =
+      `<div class="empty">🎁 Подарков пока нет</div>`;
     return;
   }
 
-  const data =
-    await api(
-      "/coins?user_id=" +
-      encodeURIComponent(
-        currentUser.id
-      )
-    );
+  container.innerHTML = gifts.map(gift => `
+    <div class="gift-card">
+      <div class="gift-icon">
+        ${escapeHtml(gift.emoji || "🎁")}
+      </div>
 
-  currentUser.coins =
-    Number(data.coins || 0);
+      <div class="gift-name">
+        ${escapeHtml(gift.name)}
+      </div>
 
-  updateBalance();
+      <div class="gift-description">
+        ${escapeHtml(
+          gift.description || "Коллекционный подарок"
+        )}
+      </div>
+
+      <div class="gift-bottom">
+        <span class="price">
+          ⭐ ${Number(gift.price || 0)}
+        </span>
+      </div>
+    </div>
+  `).join("");
 }
 
 
@@ -240,354 +228,146 @@ async function loadCoins() {
 ========================= */
 
 async function loadCases() {
+  const container = document.getElementById("casesList");
 
-  const container =
-    document.getElementById(
-      "casesList"
-    );
-
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   container.innerHTML =
-    `<div class="empty">
-      ⏳ Загружаем кейсы...
-    </div>`;
+    `<div class="empty">⏳ Загружаем кейсы...</div>`;
 
   try {
+    const data = await api("/cases");
 
-    const data =
-      await api("/cases");
-
-    cases =
-      data.cases || [];
+    cases = data.cases || [];
 
     renderCases();
-
   } catch (error) {
-
     container.innerHTML =
-      `<div class="empty">
-        ❌ ${escapeHtml(
-          error.message
-        )}
-      </div>`;
-
+      `<div class="empty">❌ ${escapeHtml(error.message)}</div>`;
   }
 }
-
 
 function renderCases() {
+  const container = document.getElementById("casesList");
 
-  const container =
-    document.getElementById(
-      "casesList"
-    );
+  if (!container) return;
 
-  const popular =
-    document.getElementById(
-      "popularCases"
-    );
-
-  const html =
-    cases.map(item => {
-
-      const premium =
-        Number(item.premium) === 1;
-
-      return `
-        <div class="case-card">
-
-          <div class="case-emoji">
-            ${escapeHtml(
-              item.emoji
-            )}
-          </div>
-
-          <div class="case-name">
-            ${escapeHtml(
-              item.name
-            )}
-          </div>
-
-          <div class="case-description">
-            ${escapeHtml(
-              item.description || ""
-            )}
-          </div>
-
-          <div class="case-price">
-
-            ${
-              premium
-                ? "⭐ Premium"
-                : "🪙 " +
-                  Number(
-                    item.cost_coins
-                  )
-            }
-
-          </div>
-
-          <button
-            class="primary"
-            onclick="openCaseView(${item.id})"
-          >
-            Открыть
-          </button>
-
-        </div>
-      `;
-
-    }).join("");
-
-  if (container) {
+  if (!cases.length) {
     container.innerHTML =
-      html ||
-      `<div class="empty">
-        Кейсов пока нет
-      </div>`;
-  }
-
-  if (popular) {
-
-    popular.innerHTML =
-      cases
-        .slice(0, 2)
-        .map(item => `
-          <div class="case-card">
-
-            <div class="case-emoji">
-              ${escapeHtml(
-                item.emoji
-              )}
-            </div>
-
-            <div class="case-name">
-              ${escapeHtml(
-                item.name
-              )}
-            </div>
-
-            <button
-              class="primary"
-              onclick="openCaseView(${item.id})"
-            >
-              Открыть
-            </button>
-
-          </div>
-        `)
-        .join("");
-
-  }
-}
-
-
-/* =========================
-   CASE DETAILS
-========================= */
-
-async function openCaseView(caseId) {
-
-  currentCase =
-    cases.find(
-      item =>
-        Number(item.id) ===
-        Number(caseId)
-    );
-
-  if (!currentCase) {
+      `<div class="empty">🎁 Кейсов пока нет</div>`;
     return;
   }
 
-  showPage("caseView");
+  container.innerHTML = cases.map(item => `
+    <div class="case-card">
+      <div class="case-icon">🎁</div>
 
-  const container =
-    document.getElementById(
-      "caseDetails"
+      <div class="case-name">
+        ${escapeHtml(item.name)}
+      </div>
+
+      <div class="case-description">
+        Несколько подарков с разными шансами
+      </div>
+
+      <button
+        class="primary"
+        onclick="openCaseInfo(${Number(item.id)})">
+        Открыть
+      </button>
+    </div>
+  `).join("");
+}
+
+async function openCaseInfo(caseId) {
+  try {
+    const data = await api(
+      "/case?case_id=" + encodeURIComponent(caseId)
     );
 
-  container.innerHTML =
-    `<div class="empty">
-      ⏳ Загружаем содержимое...
-    </div>`;
+    currentCaseItems = data.items || [];
 
-  try {
+    const selected = cases.find(
+      item => Number(item.id) === Number(caseId)
+    );
 
-    const data =
-      await api(
-        "/case-items?case_id=" +
-        encodeURIComponent(caseId)
-      );
+    if (!selected) return;
 
-    const items =
-      data.items || [];
+    let text =
+      `🎁 ${selected.name}\n\n` +
+      `Предметы:\n\n`;
 
-    const premium =
-      Number(
-        currentCase.premium
-      ) === 1;
+    currentCaseItems.forEach(item => {
+      text +=
+        `${item.emoji || "🎁"} ${item.name} — ` +
+        `${Number(item.chance)}%\n`;
+    });
 
-    container.innerHTML = `
+    text +=
+      `\nОткрытие выполняется за Coins.`;
 
-      <div class="case-big">
-
-        <div class="case-big-emoji">
-          ${escapeHtml(
-            currentCase.emoji
-          )}
-        </div>
-
-        <h1>
-          ${escapeHtml(
-            currentCase.name
-          )}
-        </h1>
-
-        <p>
-          ${escapeHtml(
-            currentCase.description || ""
-          )}
-        </p>
-
-        <h2>
-          Возможные награды
-        </h2>
-
-        <div class="reward-list">
-
-          ${
-            items.map(item => `
-              <div class="reward">
-
-                <span>
-                  ${escapeHtml(
-                    item.emoji
-                  )}
-                  ${escapeHtml(
-                    item.name
-                  )}
-                </span>
-
-                <b>
-                  ${Number(
-                    item.chance
-                  )}%
-                </b>
-
-              </div>
-            `).join("")
+    if (tg?.showPopup) {
+      tg.showPopup({
+        title: selected.name,
+        message: text,
+        buttons: [
+          {
+            id: "open",
+            type: "default",
+            text: "Открыть"
+          },
+          {
+            type: "cancel",
+            text: "Закрыть"
           }
-
-        </div>
-
-        ${
-          premium
-            ? `
-              <button
-                class="primary"
-                onclick="buyPremium()"
-              >
-                ⭐ Premium за 15 Stars
-              </button>
-            `
-            : `
-              <button
-                class="primary"
-                onclick="openCoinCase(${currentCase.id})"
-              >
-                🪙 Открыть за
-                ${Number(
-                  currentCase.cost_coins
-                )} Coins
-              </button>
-            `
+        ]
+      }, async id => {
+        if (id === "open") {
+          await openCoinCase(caseId);
         }
-
-      </div>
-    `;
+      });
+    } else {
+      if (confirm(text + "\n\nОткрыть?")) {
+        await openCoinCase(caseId);
+      }
+    }
 
   } catch (error) {
-
-    container.innerHTML =
-      `<div class="empty">
-        ❌ ${escapeHtml(
-          error.message
-        )}
-      </div>`;
-
+    showMessage("Ошибка", error.message);
   }
 }
 
-
-/* =========================
-   COIN CASE
-========================= */
-
 async function openCoinCase(caseId) {
-
-  if (!currentUser) {
-    return;
-  }
+  if (!currentUser) return;
 
   try {
-
-    const data =
-      await api(
-        "/cases/open",
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-            user_id:
-              currentUser.id,
-
-            case_id:
-              caseId
-          })
-        }
-      );
+    const data = await api("/cases/open", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: currentUser.id,
+        case_id: caseId
+      })
+    });
 
     currentUser.coins =
-      Number(
-        data.coins || 0
-      );
+      Number(data.coins || 0);
 
     updateBalance();
 
-    showMessage(
-      "🎉 Кейс открыт!",
-      `${data.gift.emoji}
-      ${data.gift.name}
-
-      Ты получил новый подарок!`
-    );
-
     await loadInventory();
 
-  } catch (error) {
-
     showMessage(
-      "Ошибка",
-      error.message
+      "🎉 Поздравляем!",
+      `${data.reward.emoji || "🎁"} ${data.reward.name}\n\n` +
+      `Предмет добавлен в инвентарь.`
     );
 
+  } catch (error) {
+    showMessage(
+      "Не удалось открыть",
+      error.message
+    );
   }
-}
-
-
-/* =========================
-   PREMIUM
-========================= */
-
-function buyPremium() {
-
-  showMessage(
-    "⭐ Premium",
-    "Premium-набор за 15 Stars будет подключён через официальный Telegram Payments. Внутри будет гарантированная награда."
-  );
 }
 
 
@@ -596,136 +376,95 @@ function buyPremium() {
 ========================= */
 
 async function loadTasks() {
+  if (!currentUser) return;
 
-  if (!currentUser) {
-    return;
-  }
+  const container = document.getElementById("tasksList");
 
-  const container =
-    document.getElementById(
-      "tasksList"
-    );
-
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   try {
+    const data = await api(
+      "/tasks?user_id=" +
+      encodeURIComponent(currentUser.id)
+    );
 
-    const data =
-      await api(
-        "/tasks?user_id=" +
-        encodeURIComponent(
-          currentUser.id
-        )
-      );
+    tasks = data.tasks || [];
 
-    const tasks =
-      data.tasks || [];
+    renderTasks();
 
-    if (!tasks.length) {
-
-      container.innerHTML =
-        `<div class="empty">
-          🎯 Сейчас нет доступных заданий
-        </div>`;
-
-      return;
-    }
-
-    container.innerHTML =
-      tasks.map(task => {
-
-        const completed =
-          Number(task.completed) === 1;
-
-        return `
-          <div class="task-card">
-
-            <div class="task-icon">
-              🎯
-            </div>
-
-            <div>
-
-              <div class="gift-name">
-                ${escapeHtml(
-                  task.title
-                )}
-              </div>
-
-              <div class="gift-description">
-                ${escapeHtml(
-                  task.description || ""
-                )}
-              </div>
-
-              <div class="price">
-                🪙 +
-                ${Number(
-                  task.reward || 0
-                )}
-              </div>
-
-            </div>
-
-            ${
-              completed
-                ? `
-                  <button
-                    class="buy"
-                    disabled
-                  >
-                    ✓ Получено
-                  </button>
-                `
-                : `
-                  <button
-                    class="buy"
-                    onclick="completeTask(${task.id})"
-                  >
-                    Получить
-                  </button>
-                `
-            }
-
-          </div>
-        `;
-
-      }).join("");
-
+    await loadCoins();
   } catch (error) {
-
     container.innerHTML =
-      `<div class="empty">
-        ❌ ${escapeHtml(
-          error.message
-        )}
-      </div>`;
-
+      `<div class="empty">❌ Не удалось загрузить задания</div>`;
   }
 }
 
+function renderTasks() {
+  const container = document.getElementById("tasksList");
+
+  if (!container) return;
+
+  if (!tasks.length) {
+    container.innerHTML =
+      `<div class="empty">🎯 Сейчас нет заданий</div>`;
+    return;
+  }
+
+  container.innerHTML = tasks.map(task => {
+    const completed =
+      Number(task.completed) === 1;
+
+    return `
+      <div class="task-card">
+        <div class="task-icon">🎯</div>
+
+        <div class="task-title">
+          ${escapeHtml(task.title)}
+        </div>
+
+        <div class="task-description">
+          ${escapeHtml(
+            task.description ||
+            "Выполни задание"
+          )}
+        </div>
+
+        <div class="price">
+          🪙 +${Number(task.reward || 0)}
+        </div>
+
+        ${
+          completed
+            ? `
+              <button class="buy" disabled>
+                ✓ Получено
+              </button>
+            `
+            : `
+              <button
+                class="primary"
+                onclick="completeTask(${Number(task.id)})">
+                Получить
+              </button>
+            `
+        }
+      </div>
+    `;
+  }).join("");
+}
 
 async function completeTask(taskId) {
-
   try {
-
-    const data =
-      await api(
-        "/tasks/complete",
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-            user_id:
-              currentUser.id,
-
-            task_id:
-              taskId
-          })
-        }
-      );
+    const data = await api(
+      "/tasks/complete",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          task_id: taskId
+        })
+      }
+    );
 
     currentUser.coins =
       Number(data.coins || 0);
@@ -733,19 +472,17 @@ async function completeTask(taskId) {
     updateBalance();
 
     showMessage(
-      "🎉 Задание выполнено",
+      "🎉 Награда",
       `Получено 🪙 ${data.reward}`
     );
 
     await loadTasks();
 
   } catch (error) {
-
     showMessage(
       "Ошибка",
       error.message
     );
-
   }
 }
 
@@ -755,75 +492,56 @@ async function completeTask(taskId) {
 ========================= */
 
 async function loadInventory() {
+  if (!currentUser) return;
 
-  if (!currentUser) {
-    return;
-  }
+  const data = await api(
+    "/inventory?user_id=" +
+    encodeURIComponent(currentUser.id)
+  );
 
-  const data =
-    await api(
-      "/inventory?user_id=" +
-      encodeURIComponent(
-        currentUser.id
-      )
-    );
+  inventory = data.inventory || [];
 
-  const inventory =
-    data.inventory || [];
-
-  const container =
-    document.getElementById(
-      "inventoryList"
-    );
-
-  if (!container) {
-    return;
-  }
+  renderInventory();
 
   const count =
-    document.getElementById(
-      "inventoryCount"
-    );
+    document.getElementById("inventoryCount");
 
   if (count) {
-    count.textContent =
-      inventory.length;
+    count.textContent = inventory.length;
   }
+}
+
+function renderInventory() {
+  const container =
+    document.getElementById("inventoryList");
+
+  if (!container) return;
 
   if (!inventory.length) {
-
     container.innerHTML =
-      `<div class="empty">
-        🎒 Инвентарь пока пуст
-      </div>`;
-
+      `<div class="empty">🎒 Инвентарь пуст</div>`;
     return;
   }
 
-  container.innerHTML =
-    inventory.map(item => `
-      <div class="gift-card">
-
-        <div class="gift-icon">
-          ${escapeHtml(
-            item.emoji
-          )}
-        </div>
-
-        <div class="gift-name">
-          ${escapeHtml(
-            item.name
-          )}
-        </div>
-
-        <div class="gift-description">
-          ${escapeHtml(
-            item.description || ""
-          )}
-        </div>
-
+  container.innerHTML = inventory.map(item => `
+    <div class="gift-card">
+      <div class="gift-icon">
+        ${escapeHtml(item.emoji || "🎁")}
       </div>
-    `).join("");
+
+      <div class="gift-name">
+        ${escapeHtml(item.name)}
+      </div>
+
+      <div class="gift-description">
+        ${escapeHtml(item.description || "")}
+      </div>
+
+      <div class="price">
+        ⭐ ${Number(item.price || 0)}
+      </div>
+    </div>
+  `).join("");
 }
 
 
@@ -832,180 +550,107 @@ async function loadInventory() {
 ========================= */
 
 async function loadReferrals() {
-
-  if (!currentUser) {
-    return;
-  }
+  if (!currentUser) return;
 
   try {
+    const data = await api(
+      "/referrals?user_id=" +
+      encodeURIComponent(currentUser.id)
+    );
 
-    const data =
-      await api(
-        "/referrals?user_id=" +
-        encodeURIComponent(
-          currentUser.id
-        )
-      );
+    const link =
+      document.getElementById("refLink");
 
-    document.getElementById(
-      "refCount"
-    ).textContent =
-      data.referrals;
+    const count =
+      document.getElementById("refCount");
 
-    document.getElementById(
-      "refActive"
-    ).textContent =
-      data.active;
+    if (link) {
+      link.textContent = data.link;
+    }
 
-    document.getElementById(
-      "profileReferrals"
-    ).textContent =
-      data.referrals;
-
-    document.getElementById(
-      "refLink"
-    ).textContent =
-      data.link;
+    if (count) {
+      count.textContent = data.count;
+    }
 
   } catch (error) {
-
     console.error(error);
-
   }
 }
 
-
 async function copyReferral() {
-
   const element =
-    document.getElementById(
-      "refLink"
-    );
+    document.getElementById("refLink");
 
-  if (!element) {
-    return;
-  }
-
-  const link =
-    element.textContent;
+  if (!element) return;
 
   try {
-
-    await navigator.clipboard
-      .writeText(link);
+    await navigator.clipboard.writeText(
+      element.textContent
+    );
 
     showMessage(
       "Готово",
-      "Реферальная ссылка скопирована"
+      "Ссылка скопирована"
     );
 
   } catch {
-
-    alert(link);
-
+    alert(element.textContent);
   }
 }
 
 
 /* =========================
-   RANKING
+   LEADERBOARD
 ========================= */
 
-async function loadRanking(type) {
-
+async function loadLeaderboard(type) {
   const container =
-    document.getElementById(
-      "rankingList"
-    );
+    document.getElementById("leaderboard");
 
-  if (!container) {
-    return;
-  }
+  if (!container) return;
 
   container.innerHTML =
-    `<div class="empty">
-      ⏳ Загружаем рейтинг...
-    </div>`;
+    `<div class="empty">⏳ Загружаем рейтинг...</div>`;
 
   try {
+    const data = await api(
+      "/leaderboard?type=" + encodeURIComponent(type)
+    );
 
-    let endpoint =
-      "/coins-rank";
-
-    if (type === "referrals") {
-      endpoint =
-        "/referral-rank";
+    if (!data.leaderboard.length) {
+      container.innerHTML =
+        `<div class="empty">🏆 Пока нет игроков</div>`;
+      return;
     }
-
-    if (type === "gifts") {
-      endpoint =
-        "/gifts-rank";
-    }
-
-    const data =
-      await api(endpoint);
-
-    const ranking =
-      data.ranking || [];
 
     container.innerHTML =
-      ranking.map(
-        (user, index) => {
+      data.leaderboard.map((user, index) => `
+        <div class="leader-row">
 
-          const name =
-            user.username
-              ? "@" + user.username
-              : user.first_name ||
-                "Пользователь";
+          <div class="leader-place">
+            #${index + 1}
+          </div>
 
-          const value =
-            type === "coins"
-              ? "🪙 " +
-                Number(
-                  user.coins || 0
-                )
-              : type === "referrals"
-                ? "👥 " +
-                  Number(
-                    user.referrals || 0
+          <div class="leader-name">
+            ${
+              user.username
+                ? "@" + escapeHtml(user.username)
+                : escapeHtml(
+                    user.first_name || "Игрок"
                   )
-                : "🎁 " +
-                  Number(
-                    user.gifts || 0
-                  );
+            }
+          </div>
 
-          return `
-            <div class="rank-card">
+          <div class="leader-score">
+            ${Number(user.score || 0)}
+          </div>
 
-              <strong>
-                #${index + 1}
-              </strong>
-
-              <span>
-                ${escapeHtml(
-                  name
-                )}
-              </span>
-
-              <b>
-                ${value}
-              </b>
-
-            </div>
-          `;
-
-        }
-      ).join("");
+        </div>
+      `).join("");
 
   } catch (error) {
-
     container.innerHTML =
-      `<div class="empty">
-        ❌ ${escapeHtml(
-          error.message
-        )}
-      </div>`;
-
+      `<div class="empty">❌ ${escapeHtml(error.message)}</div>`;
   }
 }
 
@@ -1014,13 +659,8 @@ async function loadRanking(type) {
    POPUP
 ========================= */
 
-function showMessage(
-  title,
-  message
-) {
-
+function showMessage(title, message) {
   if (tg?.showPopup) {
-
     tg.showPopup({
       title,
       message,
@@ -1031,25 +671,17 @@ function showMessage(
         }
       ]
     });
-
   } else {
-
-    alert(
-      title +
-      "\n\n" +
-      message
-    );
-
+    alert(title + "\n\n" + message);
   }
 }
 
 
 /* =========================
-   HTML SECURITY
+   HTML ESCAPE
 ========================= */
 
 function escapeHtml(value) {
-
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -1064,31 +696,23 @@ function escapeHtml(value) {
 ========================= */
 
 async function init() {
-
   try {
-
     await loadUser();
-
-    await loadCoins();
-
-    await loadCases();
-
+    await loadGifts();
     await loadInventory();
-
+    await loadCoins();
+    await loadCases();
     await loadReferrals();
 
     showPage("home");
 
   } catch (error) {
-
     console.error(
       "Ошибка запуска:",
       error
     );
-
   }
 }
-
 
 document.addEventListener(
   "DOMContentLoaded",
