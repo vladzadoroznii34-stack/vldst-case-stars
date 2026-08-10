@@ -1,0 +1,14 @@
+{
+  "name": "vldst-case-stars",
+  "compatibility_date": "2026-08-10",
+  "assets": {
+    "directory": "./внешний интерфейс"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vldst-case-db",
+      "database_id": "7fc11d1a-de72-4de8-b024-8ba0daad0ef1"
+    }
+  ]
+}
