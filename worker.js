@@ -15,7 +15,7 @@ export default {
 
     try {
       // =========================
-      // TEST
+      // DATABASE TEST
       // =========================
 
       if (url.pathname === "/api/test") {
@@ -220,7 +220,7 @@ export default {
               gifts.price,
               gifts.description
             FROM case_items
-            INNER JOIN gifts
+            JOIN gifts
               ON gifts.id = case_items.gift_id
             WHERE case_items.case_id = ?
             ORDER BY gifts.price ASC
@@ -259,12 +259,27 @@ export default {
           }, headers, 400);
         }
 
+        const user = await env.DB
+          .prepare(`
+            SELECT id, coins
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(userId)
+          .first();
+
+        if (!user) {
+          return json({
+            ok: false,
+            error: "Пользователь не найден"
+          }, headers, 404);
+        }
+
         const gameCase = await env.DB
           .prepare(`
             SELECT
               id,
               name,
-              emoji,
               price_coins,
               stars_price,
               type,
@@ -285,7 +300,7 @@ export default {
         if (gameCase.type !== "coins") {
           return json({
             ok: false,
-            error: "Этот кейс открывается другим способом"
+            error: "Этот кейс нельзя открыть за Coins"
           }, headers, 400);
         }
 
@@ -294,64 +309,8 @@ export default {
         if (price <= 0) {
           return json({
             ok: false,
-            error: "У кейса неправильная цена"
+            error: "У кейса не указана цена"
           }, headers, 400);
-        }
-
-        const items = await env.DB
-          .prepare(`
-            SELECT
-              case_items.gift_id,
-              case_items.chance,
-              gifts.name,
-              gifts.emoji,
-              gifts.price,
-              gifts.description
-            FROM case_items
-            INNER JOIN gifts
-              ON gifts.id = case_items.gift_id
-            WHERE case_items.case_id = ?
-          `)
-          .bind(caseId)
-          .all();
-
-        if (!items.results.length) {
-          return json({
-            ok: false,
-            error: "В этом кейсе нет подарков"
-          }, headers, 400);
-        }
-
-        const totalChance = items.results.reduce(
-          (sum, item) => {
-            const chance = Number(item.chance || 0);
-            return sum + (chance > 0 ? chance : 0);
-          },
-          0
-        );
-
-        if (totalChance <= 0) {
-          return json({
-            ok: false,
-            error: "У кейса неправильные шансы"
-          }, headers, 400);
-        }
-
-        // Получаем пользователя
-        const user = await env.DB
-          .prepare(`
-            SELECT id, coins
-            FROM users
-            WHERE id = ?
-          `)
-          .bind(userId)
-          .first();
-
-        if (!user) {
-          return json({
-            ok: false,
-            error: "Пользователь не найден"
-          }, headers, 404);
         }
 
         const userCoins = Number(user.coins || 0);
@@ -365,20 +324,62 @@ export default {
           }, headers, 400);
         }
 
-        // Случайный выбор награды
-        const random = Math.random() * totalChance;
+        const items = await env.DB
+          .prepare(`
+            SELECT
+              case_items.gift_id,
+              case_items.chance,
+              gifts.name,
+              gifts.emoji,
+              gifts.price,
+              gifts.description
+            FROM case_items
+            JOIN gifts
+              ON gifts.id = case_items.gift_id
+            WHERE case_items.case_id = ?
+          `)
+          .bind(caseId)
+          .all();
+
+        if (!items.results.length) {
+          return json({
+            ok: false,
+            error: "В кейсе нет подарков"
+          }, headers, 400);
+        }
+
+        const validItems = items.results.filter(
+          item => Number(item.chance) > 0
+        );
+
+        if (!validItems.length) {
+          return json({
+            ok: false,
+            error: "В кейсе нет корректных шансов"
+          }, headers, 400);
+        }
+
+        const totalChance = validItems.reduce(
+          (sum, item) =>
+            sum + Number(item.chance),
+          0
+        );
+
+        if (totalChance <= 0) {
+          return json({
+            ok: false,
+            error: "Некорректная сумма шансов"
+          }, headers, 400);
+        }
+
+        const random =
+          Math.random() * totalChance;
 
         let current = 0;
         let selected = null;
 
-        for (const item of items.results) {
-          const chance = Number(item.chance || 0);
-
-          if (chance <= 0) {
-            continue;
-          }
-
-          current += chance;
+        for (const item of validItems) {
+          current += Number(item.chance);
 
           if (random < current) {
             selected = item;
@@ -387,12 +388,11 @@ export default {
         }
 
         if (!selected) {
-          selected = items.results[
-            items.results.length - 1
-          ];
+          selected =
+            validItems[validItems.length - 1];
         }
 
-        // Списываем Coins
+        // Списание Coins.
         const update = await env.DB
           .prepare(`
             UPDATE users
@@ -414,7 +414,7 @@ export default {
           }, headers, 400);
         }
 
-        // Добавляем подарок
+        // Добавляем подарок в инвентарь.
         await env.DB
           .prepare(`
             INSERT INTO inventory
@@ -427,7 +427,7 @@ export default {
           )
           .run();
 
-        // Записываем открытие
+        // Записываем открытие.
         await env.DB
           .prepare(`
             INSERT INTO case_opens
@@ -459,14 +459,20 @@ export default {
 
         return json({
           ok: true,
+          case: {
+            id: gameCase.id,
+            name: gameCase.name
+          },
           reward: {
-            gift_id: Number(selected.gift_id),
+            gift_id: selected.gift_id,
             name: selected.name,
             emoji: selected.emoji,
             price: Number(selected.price || 0),
             chance: Number(selected.chance || 0)
           },
-          coins: Number(updatedUser?.coins || 0)
+          coins: Number(
+            updatedUser?.coins || 0
+          )
         }, headers);
       }
 
@@ -493,17 +499,17 @@ export default {
           .prepare(`
             SELECT
               inventory.id,
-              inventory.created_at,
-              gifts.id AS gift_id,
+              inventory.gift_id,
               gifts.name,
               gifts.emoji,
               gifts.price,
-              gifts.description
+              gifts.description,
+              inventory.created_at
             FROM inventory
-            INNER JOIN gifts
+            JOIN gifts
               ON gifts.id = inventory.gift_id
             WHERE inventory.user_id = ?
-            ORDER BY inventory.id DESC
+            ORDER BY inventory.created_at DESC
           `)
           .bind(userId)
           .all();
@@ -511,6 +517,132 @@ export default {
         return json({
           ok: true,
           inventory: result.results
+        }, headers);
+      }
+
+      // =========================
+      // REFERRALS
+      // =========================
+
+      if (
+        url.pathname === "/api/referral" &&
+        request.method === "POST"
+      ) {
+        const body = await request.json();
+
+        const userId = Number(body.user_id);
+        const referrerId = Number(body.referrer_id);
+
+        if (
+          !Number.isSafeInteger(userId) ||
+          !Number.isSafeInteger(referrerId) ||
+          userId <= 0 ||
+          referrerId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректные данные"
+          }, headers, 400);
+        }
+
+        if (userId === referrerId) {
+          return json({
+            ok: false,
+            error: "Нельзя пригласить самого себя"
+          }, headers, 400);
+        }
+
+        const user = await env.DB
+          .prepare(`
+            SELECT id
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(userId)
+          .first();
+
+        const referrer = await env.DB
+          .prepare(`
+            SELECT id
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(referrerId)
+          .first();
+
+        if (!user || !referrer) {
+          return json({
+            ok: false,
+            error: "Пользователь не найден"
+          }, headers, 404);
+        }
+
+        const existing = await env.DB
+          .prepare(`
+            SELECT id
+            FROM referrals
+            WHERE user_id = ?
+            LIMIT 1
+          `)
+          .bind(userId)
+          .first();
+
+        if (existing) {
+          return json({
+            ok: false,
+            error: "Реферальная ссылка уже была использована"
+          }, headers, 409);
+        }
+
+        await env.DB
+          .prepare(`
+            INSERT INTO referrals
+              (user_id, referrer_id)
+            VALUES (?, ?)
+          `)
+          .bind(
+            userId,
+            referrerId
+          )
+          .run();
+
+        return json({
+          ok: true,
+          message: "Реферал успешно добавлен"
+        }, headers);
+      }
+
+      // =========================
+      // REFERRAL COUNT
+      // =========================
+
+      if (
+        url.pathname === "/api/referrals" &&
+        request.method === "GET"
+      ) {
+        const userId = Number(
+          url.searchParams.get("user_id")
+        );
+
+        if (!Number.isSafeInteger(userId) || userId <= 0) {
+          return json({
+            ok: false,
+            error: "Некорректный user_id"
+          }, headers, 400);
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT COUNT(*) AS count
+            FROM referrals
+            WHERE referrer_id = ?
+          `)
+          .bind(userId)
+          .first();
+
+        return json({
+          ok: true,
+          referrals: Number(result?.count || 0)
         }, headers);
       }
 
@@ -543,15 +675,25 @@ export default {
               tasks.url,
               tasks.reward,
               tasks.max_completions,
+              tasks.created_at,
               CASE
-                WHEN task_completions.id IS NULL THEN 0
-                ELSE 1
+                WHEN task_completions.id IS NOT NULL
+                THEN 1
+                ELSE 0
               END AS completed
             FROM tasks
             LEFT JOIN task_completions
               ON task_completions.task_id = tasks.id
               AND task_completions.user_id = ?
             WHERE tasks.is_active = 1
+              AND (
+                tasks.max_completions IS NULL
+                OR (
+                  SELECT COUNT(*)
+                  FROM task_completions tc
+                  WHERE tc.task_id = tasks.id
+                ) < tasks.max_completions
+              )
             ORDER BY tasks.id DESC
           `)
           .bind(userId)
@@ -616,65 +758,30 @@ export default {
           }, headers, 400);
         }
 
-        const already = await env.DB
-          .prepare(`
-            SELECT id
-            FROM task_completions
-            WHERE task_id = ?
-              AND user_id = ?
-            LIMIT 1
-          `)
-          .bind(taskId, userId)
-          .first();
+        const alreadyCompleted =
+          await env.DB
+            .prepare(`
+              SELECT id
+              FROM task_completions
+              WHERE task_id = ?
+                AND user_id = ?
+              LIMIT 1
+            `)
+            .bind(
+              taskId,
+              userId
+            )
+            .first();
 
-        if (already) {
+        if (alreadyCompleted) {
           return json({
             ok: false,
             error: "Это задание уже выполнено"
           }, headers, 409);
         }
 
-        if (task.max_completions !== null) {
-          const count = await env.DB
-            .prepare(`
-              SELECT COUNT(*) AS count
-              FROM task_completions
-              WHERE task_id = ?
-            `)
-            .bind(taskId)
-            .first();
-
-          if (
-            Number(count?.count || 0) >=
-            Number(task.max_completions)
-          ) {
-            return json({
-              ok: false,
-              error: "Лимит выполнения задания достигнут"
-            }, headers, 400);
-          }
-        }
-
-        const user = await env.DB
-          .prepare(`
-            SELECT id
-            FROM users
-            WHERE id = ?
-          `)
-          .bind(userId)
-          .first();
-
-        if (!user) {
-          return json({
-            ok: false,
-            error: "Пользователь не найден"
-          }, headers, 404);
-        }
-
-        const reward = Math.max(
-          0,
-          Number(task.reward || 0)
-        );
+        const reward =
+          Math.max(0, Number(task.reward) || 0);
 
         await env.DB
           .prepare(`
@@ -701,213 +808,105 @@ export default {
           )
           .run();
 
-        const updated = await env.DB
-          .prepare(`
-            SELECT coins
-            FROM users
-            WHERE id = ?
-          `)
-          .bind(userId)
-          .first();
+        const updatedUser =
+          await env.DB
+            .prepare(`
+              SELECT coins
+              FROM users
+              WHERE id = ?
+            `)
+            .bind(userId)
+            .first();
 
         return json({
           ok: true,
+          message: "Задание выполнено",
           reward,
-          coins: Number(updated?.coins || 0)
-        }, headers);
-      }
-
-      // =========================
-      // REFERRAL
-      // =========================
-
-      if (
-        url.pathname === "/api/referral" &&
-        request.method === "POST"
-      ) {
-        const body = await request.json();
-
-        const userId = Number(body.user_id);
-        const referrerId = Number(body.referrer_id);
-
-        if (
-          !Number.isSafeInteger(userId) ||
-          !Number.isSafeInteger(referrerId) ||
-          userId <= 0 ||
-          referrerId <= 0 ||
-          userId === referrerId
-        ) {
-          return json({
-            ok: false,
-            error: "Некорректные данные"
-          }, headers, 400);
-        }
-
-        const user = await env.DB
-          .prepare(`
-            SELECT id
-            FROM users
-            WHERE id = ?
-          `)
-          .bind(userId)
-          .first();
-
-        const referrer = await env.DB
-          .prepare(`
-            SELECT id
-            FROM users
-            WHERE id = ?
-          `)
-          .bind(referrerId)
-          .first();
-
-        if (!user || !referrer) {
-          return json({
-            ok: false,
-            error: "Пользователь не найден"
-          }, headers, 404);
-        }
-
-        const existing = await env.DB
-          .prepare(`
-            SELECT id
-            FROM referrals
-            WHERE user_id = ?
-            LIMIT 1
-          `)
-          .bind(userId)
-          .first();
-
-        if (existing) {
-          return json({
-            ok: false,
-            error: "Реферал уже установлен"
-          }, headers, 409);
-        }
-
-        await env.DB
-          .prepare(`
-            INSERT INTO referrals
-              (user_id, referrer_id)
-            VALUES (?, ?)
-          `)
-          .bind(
-            userId,
-            referrerId
+          coins: Number(
+            updatedUser?.coins || 0
           )
-          .run();
-
-        return json({
-          ok: true
         }, headers);
       }
 
       // =========================
-      // REFERRAL INFO
+      // RANKING — COINS
       // =========================
 
       if (
-        url.pathname === "/api/referrals" &&
+        url.pathname === "/api/rating/coins" &&
         request.method === "GET"
       ) {
-        const userId = Number(
-          url.searchParams.get("user_id")
-        );
-
-        if (!Number.isSafeInteger(userId) || userId <= 0) {
-          return json({
-            ok: false,
-            error: "Некорректный user_id"
-          }, headers, 400);
-        }
-
         const result = await env.DB
           .prepare(`
-            SELECT COUNT(*) AS count
-            FROM referrals
-            WHERE referrer_id = ?
+            SELECT
+              id,
+              username,
+              first_name,
+              coins
+            FROM users
+            ORDER BY coins DESC, id ASC
+            LIMIT 100
           `)
-          .bind(userId)
-          .first();
+          .all();
 
         return json({
           ok: true,
-          count: Number(result?.count || 0)
+          rating: result.results.map(
+            (user, index) => ({
+              place: index + 1,
+              id: user.id,
+              username: user.username,
+              first_name: user.first_name,
+              coins: Number(user.coins || 0)
+            })
+          )
         }, headers);
       }
 
       // =========================
-      // RANKING
+      // RANKING — REFERRALS
       // =========================
 
       if (
-        url.pathname === "/api/ranking" &&
+        url.pathname === "/api/rating/referrals" &&
         request.method === "GET"
       ) {
-        const type = url.searchParams.get("type") || "coins";
-
-        let result;
-
-        if (type === "referrals") {
-          result = await env.DB
-            .prepare(`
-              SELECT
-                users.id,
-                users.username,
-                users.first_name,
-                COUNT(referrals.id) AS score
-              FROM users
-              LEFT JOIN referrals
-                ON referrals.referrer_id = users.id
-              GROUP BY users.id
-              ORDER BY score DESC, users.id ASC
-              LIMIT 100
-            `)
-            .all();
-        } else if (type === "gifts") {
-          result = await env.DB
-            .prepare(`
-              SELECT
-                users.id,
-                users.username,
-                users.first_name,
-                COUNT(inventory.id) AS score
-              FROM users
-              LEFT JOIN inventory
-                ON inventory.user_id = users.id
-              GROUP BY users.id
-              ORDER BY score DESC, users.id ASC
-              LIMIT 100
-            `)
-            .all();
-        } else {
-          result = await env.DB
-            .prepare(`
-              SELECT
-                id,
-                username,
-                first_name,
-                coins AS score
-              FROM users
-              ORDER BY coins DESC, id ASC
-              LIMIT 100
-            `)
-            .all();
-        }
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              users.id,
+              users.username,
+              users.first_name,
+              COUNT(referrals.id) AS referrals
+            FROM users
+            LEFT JOIN referrals
+              ON referrals.referrer_id = users.id
+            GROUP BY users.id
+            ORDER BY referrals DESC, users.id ASC
+            LIMIT 100
+          `)
+          .all();
 
         return json({
           ok: true,
-          type,
-          ranking: result.results
+          rating: result.results.map(
+            (user, index) => ({
+              place: index + 1,
+              id: user.id,
+              username: user.username,
+              first_name: user.first_name,
+              referrals: Number(user.referrals || 0)
+            })
+          )
         }, headers);
       }
 
       // =========================
-      // HISTORY
+      // MY REFERRAL REWARDS
       // =========================
 
       if (
-        url.pathname === "/api/history" &&
+        url.pathname === "/api/referral/rewards" &&
         request.method === "GET"
       ) {
         const userId = Number(
@@ -924,5 +923,114 @@ export default {
         const result = await env.DB
           .prepare(`
             SELECT
-              case_opens.id,
-              case_opens
+              id,
+              user_id,
+              referrer_id,
+              coins,
+              created_at
+            FROM referral_rewards
+            WHERE referrer_id = ?
+            ORDER BY id DESC
+          `)
+          .bind(userId)
+          .all();
+
+        const total = result.results.reduce(
+          (sum, item) =>
+            sum + Number(item.coins || 0),
+          0
+        );
+
+        return json({
+          ok: true,
+          total,
+          rewards: result.results
+        }, headers);
+      }
+
+      // =========================
+      // SAFE STAR CASE INFO
+      // =========================
+      // Star Case не открывается случайным образом
+      // через этот API.
+
+      if (
+        url.pathname === "/api/star-case" &&
+        request.method === "GET"
+      ) {
+        const gameCase = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              description,
+              emoji,
+              stars_price,
+              type,
+              is_active
+            FROM cases
+            WHERE type = 'stars'
+              AND is_active = 1
+            ORDER BY id ASC
+            LIMIT 1
+          `)
+          .first();
+
+        if (!gameCase) {
+          return json({
+            ok: false,
+            error: "Star Case не найден"
+          }, headers, 404);
+        }
+
+        const items = await env.DB
+          .prepare(`
+            SELECT
+              case_items.gift_id,
+              gifts.name,
+              gifts.emoji,
+              gifts.price,
+              gifts.description
+            FROM case_items
+            JOIN gifts
+              ON gifts.id = case_items.gift_id
+            WHERE case_items.case_id = ?
+            ORDER BY gifts.price ASC
+          `)
+          .bind(gameCase.id)
+          .all();
+
+        return json({
+          ok: true,
+          case: gameCase,
+          items: items.results
+        }, headers);
+      }
+
+      // =========================
+      // STATIC FILES
+      // =========================
+
+      return env.ASSETS.fetch(request);
+
+    } catch (error) {
+      console.error("WORKER ERROR:", error);
+
+      return json({
+        ok: false,
+        error: "Внутренняя ошибка сервера",
+        message: error?.message || String(error)
+      }, headers, 500);
+    }
+  }
+};
+
+function json(data, headers, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers
+    }
+  );
+              }
