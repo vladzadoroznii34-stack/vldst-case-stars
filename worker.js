@@ -1006,7 +1006,376 @@ export default {
           items: items.results
         }, headers);
       }
+      // =========================
+      // ADMIN API
+      // =========================
 
+      const adminKey = request.headers.get("X-Admin-Key");
+
+      if (url.pathname.startsWith("/api/admin/")) {
+        if (!env.ADMIN_KEY || adminKey !== env.ADMIN_KEY) {
+          return json({
+            ok: false,
+            error: "Нет доступа"
+          }, headers, 401);
+        }
+
+        // Создаём таблицы админки автоматически
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS admin_bans (
+            user_id INTEGER PRIMARY KEY,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run();
+
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS ads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            text TEXT NOT NULL,
+            url TEXT,
+            reward INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run();
+
+        // =========================
+        // ADMIN STATS
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/stats" &&
+          request.method === "GET"
+        ) {
+          const users = await env.DB
+            .prepare(`SELECT COUNT(*) AS count FROM users`)
+            .first();
+
+          const coins = await env.DB
+            .prepare(`
+              SELECT COALESCE(SUM(coins), 0) AS total
+              FROM users
+            `)
+            .first();
+
+          const referrals = await env.DB
+            .prepare(`
+              SELECT COUNT(*) AS count
+              FROM referrals
+            `)
+            .first();
+
+          const tasks = await env.DB
+            .prepare(`
+              SELECT COUNT(*) AS count
+              FROM tasks
+              WHERE is_active = 1
+            `)
+            .first();
+
+          const ads = await env.DB
+            .prepare(`
+              SELECT COUNT(*) AS count
+              FROM ads
+              WHERE is_active = 1
+            `)
+            .first();
+
+          return json({
+            ok: true,
+            stats: {
+              users: Number(users?.count || 0),
+              coins: Number(coins?.total || 0),
+              referrals: Number(referrals?.count || 0),
+              tasks: Number(tasks?.count || 0),
+              ads: Number(ads?.count || 0)
+            }
+          }, headers);
+        }
+
+        // =========================
+        // USERS
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/users" &&
+          request.method === "GET"
+        ) {
+          const search = url.searchParams.get("search") || "";
+
+          let result;
+
+          if (search) {
+            result = await env.DB
+              .prepare(`
+                SELECT
+                  users.id,
+                  users.username,
+                  users.first_name,
+                  users.balance,
+                  users.coins,
+                  users.created_at,
+                  CASE
+                    WHEN admin_bans.user_id IS NOT NULL
+                    THEN 1
+                    ELSE 0
+                  END AS banned
+                FROM users
+                LEFT JOIN admin_bans
+                  ON admin_bans.user_id = users.id
+                WHERE
+                  CAST(users.id AS TEXT) LIKE ?
+                  OR users.username LIKE ?
+                  OR users.first_name LIKE ?
+                ORDER BY users.id DESC
+                LIMIT 100
+              `)
+              .bind(
+                `%${search}%`,
+                `%${search}%`,
+                `%${search}%`
+              )
+              .all();
+          } else {
+            result = await env.DB
+              .prepare(`
+                SELECT
+                  users.id,
+                  users.username,
+                  users.first_name,
+                  users.balance,
+                  users.coins,
+                  users.created_at,
+                  CASE
+                    WHEN admin_bans.user_id IS NOT NULL
+                    THEN 1
+                    ELSE 0
+                  END AS banned
+                FROM users
+                LEFT JOIN admin_bans
+                  ON admin_bans.user_id = users.id
+                ORDER BY users.id DESC
+                LIMIT 100
+              `)
+              .all();
+          }
+
+          return json({
+            ok: true,
+            users: result.results
+          }, headers);
+        }
+
+        // =========================
+        // ADD COINS
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/user/add-coins" &&
+          request.method === "POST"
+        ) {
+          const body = await request.json();
+
+          const userId = Number(body.user_id);
+          const amount = Number(body.amount);
+
+          if (
+            !Number.isSafeInteger(userId) ||
+            !Number.isFinite(amount) ||
+            amount === 0
+          ) {
+            return json({
+              ok: false,
+              error: "Некорректные данные"
+            }, headers, 400);
+          }
+
+          const user = await env.DB
+            .prepare(`
+              SELECT id
+              FROM users
+              WHERE id = ?
+            `)
+            .bind(userId)
+            .first();
+
+          if (!user) {
+            return json({
+              ok: false,
+              error: "Пользователь не найден"
+            }, headers, 404);
+          }
+
+          await env.DB
+            .prepare(`
+              UPDATE users
+              SET coins = COALESCE(coins, 0) + ?
+              WHERE id = ?
+            `)
+            .bind(amount, userId)
+            .run();
+
+          const updated = await env.DB
+            .prepare(`
+              SELECT coins
+              FROM users
+              WHERE id = ?
+            `)
+            .bind(userId)
+            .first();
+
+          return json({
+            ok: true,
+            coins: Number(updated?.coins || 0)
+          }, headers);
+        }
+
+        // =========================
+        // BAN
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/user/ban" &&
+          request.method === "POST"
+        ) {
+          const body = await request.json();
+          const userId = Number(body.user_id);
+
+          if (!Number.isSafeInteger(userId) || userId <= 0) {
+            return json({
+              ok: false,
+              error: "Некорректный user_id"
+            }, headers, 400);
+          }
+
+          await env.DB
+            .prepare(`
+              INSERT OR IGNORE INTO admin_bans (user_id)
+              VALUES (?)
+            `)
+            .bind(userId)
+            .run();
+
+          return json({
+            ok: true,
+            banned: true
+          }, headers);
+        }
+
+        // =========================
+        // UNBAN
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/user/unban" &&
+          request.method === "POST"
+        ) {
+          const body = await request.json();
+          const userId = Number(body.user_id);
+
+          await env.DB
+            .prepare(`
+              DELETE FROM admin_bans
+              WHERE user_id = ?
+            `)
+            .bind(userId)
+            .run();
+
+          return json({
+            ok: true,
+            banned: false
+          }, headers);
+        }
+
+        // =========================
+        // ADS LIST
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/ads" &&
+          request.method === "GET"
+        ) {
+          const result = await env.DB
+            .prepare(`
+              SELECT *
+              FROM ads
+              ORDER BY id DESC
+            `)
+            .all();
+
+          return json({
+            ok: true,
+            ads: result.results
+          }, headers);
+        }
+
+        // =========================
+        // CREATE AD
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/ads/create" &&
+          request.method === "POST"
+        ) {
+          const body = await request.json();
+
+          if (!body.title || !body.text) {
+            return json({
+              ok: false,
+              error: "Заполни заголовок и текст"
+            }, headers, 400);
+          }
+
+          const result = await env.DB
+            .prepare(`
+              INSERT INTO ads
+                (title, text, url, reward)
+              VALUES (?, ?, ?, ?)
+            `)
+            .bind(
+              String(body.title),
+              String(body.text),
+              body.url ? String(body.url) : null,
+              Number(body.reward || 0)
+            )
+            .run();
+
+          return json({
+            ok: true,
+            id: result.meta?.last_row_id
+          }, headers);
+        }
+
+        // =========================
+        // DELETE AD
+        // =========================
+
+        if (
+          url.pathname === "/api/admin/ads/delete" &&
+          request.method === "POST"
+        ) {
+          const body = await request.json();
+          const id = Number(body.id);
+
+          await env.DB
+            .prepare(`
+              DELETE FROM ads
+              WHERE id = ?
+            `)
+            .bind(id)
+            .run();
+
+          return json({
+            ok: true
+          }, headers);
+        }
+
+        return json({
+          ok: false,
+          error: "Admin endpoint not found"
+        }, headers, 404);
+          }
       // =========================
       // STATIC FILES
       // =========================
