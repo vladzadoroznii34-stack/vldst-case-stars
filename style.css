@@ -5,13 +5,15 @@
 }
 
 :root {
-  --bg: #09090d;
-  --card: #12121a;
-  --card2: #181823;
+  --bg: #07070b;
+  --surface: #101017;
+  --surface2: #171720;
+  --surface3: #20202b;
   --text: #ffffff;
   --muted: #858592;
-  --accent: #7c5cff;
-  --accent2: #a98cff;
+  --purple: #7c5cff;
+  --purple2: #a98cff;
+  --gold: #ffd84d;
   --border: rgba(255,255,255,.08);
 }
 
@@ -29,9 +31,10 @@ body {
 }
 
 button {
-  font: inherit;
   border: 0;
+  font: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
@@ -39,63 +42,71 @@ button {
   max-width: 600px;
   min-height: 100vh;
   margin: auto;
-  padding-bottom: 90px;
+  padding-bottom: 100px;
 }
 
-/* Верхняя панель */
+/* TOP */
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 18px;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: rgba(9,9,13,.88);
-  backdrop-filter: blur(16px);
+  padding: 18px 16px;
+  background: rgba(7,7,11,.82);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,.04);
 }
 
 .logo {
   font-size: 25px;
-  font-weight: 900;
+  line-height: 1;
+  font-weight: 950;
   letter-spacing: -1px;
 }
 
 .subtitle {
+  margin-top: 5px;
   color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 2px;
-  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
 }
 
 .balance {
-  background: var(--card);
+  padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 9px 13px;
-  font-weight: 700;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #171721, #0e0e14);
+  font-weight: 850;
+  box-shadow: 0 8px 25px rgba(0,0,0,.2);
 }
 
-/* Страницы */
+.balance:first-letter {
+  color: var(--gold);
+}
+
+/* MAIN */
 
 main {
-  padding: 0 16px;
+  padding: 14px 16px 0;
 }
 
 .page {
   display: none;
-  animation: fade .2s ease;
+  animation: pageIn .22s ease;
 }
 
 .page.active {
   display: block;
 }
 
-@keyframes fade {
+@keyframes pageIn {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(8px);
   }
 
   to {
@@ -105,152 +116,333 @@ main {
 }
 
 h1 {
-  font-size: 27px;
-  margin: 12px 0 20px;
+  margin: 8px 0 20px;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -.7px;
 }
 
 h2 {
+  margin: 26px 0 13px;
   font-size: 19px;
-  margin: 24px 0 12px;
+  font-weight: 850;
 }
 
-/* Главный баннер */
+/* HERO */
 
 .hero {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(145deg, #1a1730, #11111a);
-  border: 1px solid var(--border);
-  border-radius: 25px;
-  padding: 27px 22px;
-  margin-top: 5px;
+  margin-top: 2px;
+  padding: 28px 21px 22px;
+  border: 1px solid rgba(124,92,255,.2);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(124,92,255,.28), transparent 35%),
+    linear-gradient(145deg, #19152e, #0e0e15 70%);
+  box-shadow: 0 18px 50px rgba(0,0,0,.25);
 }
 
-.hero::after {
+.hero::before {
   content: "✦";
   position: absolute;
-  right: 20px;
-  top: 10px;
-  font-size: 80px;
+  right: 15px;
+  top: 3px;
+  color: #a98cff;
+  font-size: 90px;
   opacity: .08;
 }
 
 .hero-title {
-  font-size: 30px;
-  font-weight: 900;
+  position: relative;
+  z-index: 1;
+  font-size: 31px;
+  font-weight: 950;
+  letter-spacing: -1px;
 }
 
 .hero-text {
-  color: var(--muted);
-  margin: 8px 0 20px;
-  max-width: 270px;
-  line-height: 1.4;
+  position: relative;
+  z-index: 1;
+  max-width: 280px;
+  margin: 9px 0 22px;
+  color: #aaaab6;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .primary {
   width: 100%;
-  padding: 14px;
-  border-radius: 14px;
+  padding: 15px;
+  border-radius: 15px;
   color: white;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  box-shadow: 0 8px 25px rgba(124,92,255,.2);
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  font-weight: 850;
+  box-shadow: 0 10px 30px rgba(124,92,255,.25);
+  transition: transform .15s ease;
 }
 
 .primary:active {
-  transform: scale(.98);
+  transform: scale(.97);
 }
 
-/* Карточки */
+/* GRID */
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
+/* GIFT */
+
 .gift-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 19px;
-  padding: 16px;
-  min-height: 190px;
+  position: relative;
+  overflow: hidden;
+  min-height: 205px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: linear-gradient(160deg, #15151e, #0e0e14);
+  box-shadow: 0 10px 30px rgba(0,0,0,.16);
+  transition: transform .15s ease, border-color .15s ease;
+}
+
+.gift-card:active {
+  transform: scale(.98);
 }
 
 .gift-icon {
-  height: 95px;
+  height: 100px;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   font-size: 58px;
+  filter: drop-shadow(0 8px 15px rgba(0,0,0,.25));
 }
 
 .gift-name {
-  font-weight: 800;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
+  font-size: 15px;
+  font-weight: 850;
 }
 
 .gift-description {
+  min-height: 31px;
+  margin-bottom: 11px;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.3;
-  margin-bottom: 10px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .gift-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 7px;
 }
 
 .price {
-  font-weight: 800;
+  color: var(--gold);
+  font-weight: 900;
 }
 
 .buy {
-  padding: 8px 11px;
-  border-radius: 10px;
-  background: var(--card2);
-  color: white;
+  padding: 9px 12px;
   border: 1px solid var(--border);
-  font-weight: 700;
+  border-radius: 11px;
+  color: white;
+  background: var(--surface3);
+  font-size: 12px;
+  font-weight: 800;
 }
 
-/* Профиль */
+.buy:active {
+  transform: scale(.95);
+}
+
+/* EMPTY */
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 35px 15px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* PROFILE */
 
 .profile-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
   padding: 18px;
-  border-radius: 20px;
+  border: 1px solid var(--border);
+  border-radius: 21px;
+  background: linear-gradient(145deg, #15151e, #0e0e14);
 }
 
 .avatar {
-  width: 55px;
-  height: 55px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  font-weight: 900;
+  border-radius: 50%;
+  color: white;
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  font-size: 23px;
+  font-weight: 950;
 }
 
 .profile-card small {
   color: var(--muted);
 }
 
-/* Статистика */
+/* STATS */
 
 .stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin-top: 
+  margin-top: 12px;
+}
+
+.stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.stats span {
+  font-size: 21px;
+}
+
+.stats b {
+  font-size: 22px;
+}
+
+.stats small {
+  color: var(--muted);
+}
+
+/* REFERRALS */
+
+.ref-card {
+  padding: 22px;
+  border: 1px solid rgba(124,92,255,.18);
+  border-radius: 23px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(124,92,255,.18), transparent 40%),
+    var(--surface);
+}
+
+.ref-icon {
+  margin-bottom: 10px;
+  font-size: 42px;
+}
+
+.ref-card h2 {
+  margin: 0 0 8px;
+}
+
+.ref-card p {
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ref-link {
+  overflow: hidden;
+  margin-bottom: 12px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #09090d;
+  color: #aaa;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* NAVIGATION */
+
+.bottom-nav {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: 10px;
+  width: calc(100% - 20px);
+  max-width: 580px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 21px;
+  background: rgba(15,15,22,.92);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 15px 45px rgba(0,0,0,.45);
+}
+
+.bottom-nav button {
+  min-width: 0;
+  padding: 8px 3px;
+  border-radius: 15px;
+  color: #777783;
+  background: transparent;
+  transition: .15s ease;
+}
+
+.bottom-nav button span {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 18px;
+}
+
+.bottom-nav button small {
+  display: block;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bottom-nav button.active {
+  color: white;
+  background: linear-gradient(
+    135deg,
+    rgba(124,92,255,.28),
+    rgba(169,140,255,.12)
+  );
+}
+
+@media (max-width: 360px) {
+  .grid {
+    gap: 8px;
+  }
+
+  .gift-card {
+    padding: 11px;
+  }
+
+  .gift-icon {
+    height: 85px;
+    font-size: 50px;
+  }
+
+  .bottom-nav button small {
+    font-size: 8px;
+  }
+  }
