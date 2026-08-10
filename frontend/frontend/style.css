@@ -1,0 +1,202 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0b0b10;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+}
+
+.app {
+  min-height: 100vh;
+  padding-bottom: 85px;
+}
+
+header {
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-size: 25px;
+  font-weight: 900;
+}
+
+.subtitle {
+  color: #888;
+  font-size: 12px;
+}
+
+.balance {
+  background: #17171f;
+  padding: 10px 14px;
+  border-radius: 15px;
+  font-weight: bold;
+}
+
+main {
+  padding: 0 16px;
+}
+
+.page {
+  display: none;
+}
+
+.page.active {
+  display: block;
+}
+
+.hero {
+  padding: 25px;
+  border-radius: 25px;
+  background: linear-gradient(135deg, #191923, #292936);
+  margin-bottom: 25px;
+}
+
+.hero-title {
+  font-size: 25px;
+  font-weight: 900;
+}
+
+.hero-text {
+  color: #aaa;
+  margin-top: 8px;
+}
+
+h1,
+h2 {
+  margin-top: 20px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.gift-card {
+  background: #15151d;
+  border-radius: 20px;
+  padding: 15px;
+  text-align: center;
+}
+
+.gift-icon {
+  font-size: 55px;
+  margin: 10px;
+}
+
+.gift-name {
+  font-weight: bold;
+}
+
+.gift-price {
+  color: #ffd54a;
+  margin: 8px;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+.gift-card button {
+  width: 100%;
+  padding: 11px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #000;
+  font-weight: bold;
+}
+
+.inventory {
+  display: grid;
+  gap: 12px;
+}
+
+.inventory-item,
+.info-card,
+.profile-card,
+.stats {
+  background: #15151d;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.empty {
+  text-align: center;
+  color: #777;
+  padding: 40px 10px;
+}
+
+.big-button {
+  width: 100%;
+  padding: 16px;
+  margin-top: 15px;
+  border-radius: 15px;
+  background: #ffffff;
+  color: #000;
+  font-weight: bold;
+}
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.avatar {
+  font-size: 40px;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 12px;
+}
+
+.stats div {
+  text-align: center;
+}
+
+.stats b,
+.stats span {
+  display: block;
+}
+
+.stats span {
+  color: #888;
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 75px;
+  background: #111117;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  border-top: 1px solid #24242d;
+}
+
+nav button {
+  background: transparent;
+  color: #777;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 20px;
+}
+
+nav span {
+  font-size: 10px;
+}
