@@ -14,15 +14,19 @@ export default {
     }
 
     try {
+
       // =========================
-      // TEST
+      // DATABASE TEST
       // =========================
 
       if (url.pathname === "/api/test") {
         const result = await env.DB
-          .prepare(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-          )
+          .prepare(`
+            SELECT name
+            FROM sqlite_master
+            WHERE type='table'
+            ORDER BY name
+          `)
           .all();
 
         return json({
@@ -32,11 +36,15 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // USER
       // =========================
 
-      if (url.pathname === "/api/user" && request.method === "POST") {
+      if (
+        url.pathname === "/api/user" &&
+        request.method === "POST"
+      ) {
         const body = await request.json();
 
         const id = Number(body.id);
@@ -48,34 +56,36 @@ export default {
           }, headers, 400);
         }
 
-        await env.DB.prepare(`
-          INSERT INTO users
-            (id, username, first_name)
-          VALUES (?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            username = excluded.username,
-            first_name = excluded.first_name
-        `)
-        .bind(
-          id,
-          body.username || null,
-          body.first_name || null
-        )
-        .run();
-
-        const user = await env.DB.prepare(`
-          SELECT
+        await env.DB
+          .prepare(`
+            INSERT INTO users
+              (id, username, first_name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              username = excluded.username,
+              first_name = excluded.first_name
+          `)
+          .bind(
             id,
-            username,
-            first_name,
-            balance,
-            coins,
-            created_at
-          FROM users
-          WHERE id = ?
-        `)
-        .bind(id)
-        .first();
+            body.username || null,
+            body.first_name || null
+          )
+          .run();
+
+        const user = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              username,
+              first_name,
+              balance,
+              coins,
+              created_at
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(id)
+          .first();
 
         return json({
           ok: true,
@@ -83,20 +93,27 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // COINS
       // =========================
 
-      if (url.pathname === "/api/coins" && request.method === "GET") {
-        const userId = Number(url.searchParams.get("user_id"));
+      if (
+        url.pathname === "/api/coins" &&
+        request.method === "GET"
+      ) {
+        const userId = Number(
+          url.searchParams.get("user_id")
+        );
 
-        const user = await env.DB.prepare(`
-          SELECT coins
-          FROM users
-          WHERE id = ?
-        `)
-        .bind(userId)
-        .first();
+        const user = await env.DB
+          .prepare(`
+            SELECT coins
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(userId)
+          .first();
 
         if (!user) {
           return json({
@@ -111,21 +128,27 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // GIFTS
       // =========================
 
-      if (url.pathname === "/api/gifts" && request.method === "GET") {
-        const result = await env.DB.prepare(`
-          SELECT
-            id,
-            name,
-            emoji,
-            price,
-            description
-          FROM gifts
-          ORDER BY price ASC
-        `).all();
+      if (
+        url.pathname === "/api/gifts" &&
+        request.method === "GET"
+      ) {
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              emoji,
+              price,
+              description
+            FROM gifts
+            ORDER BY price ASC
+          `)
+          .all();
 
         return json({
           ok: true,
@@ -133,51 +156,31 @@ export default {
         }, headers);
       }
 
-      // =========================
-      // INVENTORY
-      // =========================
-
-      if (url.pathname === "/api/inventory" && request.method === "GET") {
-        const userId = Number(
-          url.searchParams.get("user_id")
-        );
-
-        const result = await env.DB.prepare(`
-          SELECT
-            inventory.id,
-            inventory.created_at,
-            gifts.id AS gift_id,
-            gifts.name,
-            gifts.emoji,
-            gifts.price,
-            gifts.description
-          FROM inventory
-          JOIN gifts
-            ON gifts.id = inventory.gift_id
-          WHERE inventory.user_id = ?
-          ORDER BY inventory.created_at DESC
-        `)
-        .bind(userId)
-        .all();
-
-        return json({
-          ok: true,
-          inventory: result.results
-        }, headers);
-      }
 
       // =========================
       // CASES
       // =========================
 
-      if (url.pathname === "/api/cases" && request.method === "GET") {
-        const result = await env.DB.prepare(`
-          SELECT
-            id,
-            name
-          FROM cases
-          ORDER BY id ASC
-        `).all();
+      if (
+        url.pathname === "/api/cases" &&
+        request.method === "GET"
+      ) {
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              description,
+              emoji,
+              price_coins,
+              stars_price,
+              type,
+              is_active
+            FROM cases
+            WHERE is_active = 1
+            ORDER BY id ASC
+          `)
+          .all();
 
         return json({
           ok: true,
@@ -185,45 +188,53 @@ export default {
         }, headers);
       }
 
+
       // =========================
       // CASE CONTENT
       // =========================
 
       if (
-        url.pathname === "/api/case" &&
+        url.pathname === "/api/cases/items" &&
         request.method === "GET"
       ) {
         const caseId = Number(
           url.searchParams.get("case_id")
         );
 
-        const items = await env.DB.prepare(`
-          SELECT
-            case_items.id,
-            case_items.case_id,
-            case_items.gift_id,
-            case_items.chance,
-            gifts.name,
-            gifts.emoji,
-            gifts.price,
-            gifts.description
-          FROM case_items
-          JOIN gifts
-            ON gifts.id = case_items.gift_id
-          WHERE case_items.case_id = ?
-          ORDER BY gifts.price DESC
-        `)
-        .bind(caseId)
-        .all();
+        if (!Number.isSafeInteger(caseId)) {
+          return json({
+            ok: false,
+            error: "Некорректный case_id"
+          }, headers, 400);
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              case_items.gift_id,
+              case_items.chance,
+              gifts.name,
+              gifts.emoji,
+              gifts.price,
+              gifts.description
+            FROM case_items
+            JOIN gifts
+              ON gifts.id = case_items.gift_id
+            WHERE case_items.case_id = ?
+            ORDER BY case_items.chance DESC
+          `)
+          .bind(caseId)
+          .all();
 
         return json({
           ok: true,
-          items: items.results
+          items: result.results
         }, headers);
       }
 
+
       // =========================
-      // OPEN COIN CASE
+      // OPEN CASE FOR COINS
       // =========================
 
       if (
@@ -235,13 +246,26 @@ export default {
         const userId = Number(body.user_id);
         const caseId = Number(body.case_id);
 
-        const user = await env.DB.prepare(`
-          SELECT id, coins
-          FROM users
-          WHERE id = ?
-        `)
-        .bind(userId)
-        .first();
+        if (
+          !Number.isSafeInteger(userId) ||
+          !Number.isSafeInteger(caseId) ||
+          userId <= 0 ||
+          caseId <= 0
+        ) {
+          return json({
+            ok: false,
+            error: "Некорректные данные"
+          }, headers, 400);
+        }
+
+        const user = await env.DB
+          .prepare(`
+            SELECT id, coins
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(userId)
+          .first();
 
         if (!user) {
           return json({
@@ -250,232 +274,182 @@ export default {
           }, headers, 404);
         }
 
-        /*
-          Цена кейса берётся из таблицы cases.
-          Если в твоей таблице cases пока нет price,
-          добавь колонку:
-          ALTER TABLE cases ADD COLUMN price INTEGER DEFAULT 100;
-        */
+        const gameCase = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              price_coins,
+              stars_price,
+              type,
+              is_active
+            FROM cases
+            WHERE id = ?
+          `)
+          .bind(caseId)
+          .first();
 
-        const selectedCase = await env.DB.prepare(`
-          SELECT id, name, price
-          FROM cases
-          WHERE id = ?
-        `)
-        .bind(caseId)
-        .first();
-
-        if (!selectedCase) {
+        if (!gameCase || !gameCase.is_active) {
           return json({
             ok: false,
-            error: "Кейс не найден"
+            error: "Кейс недоступен"
           }, headers, 404);
         }
 
-        const price = Number(selectedCase.price || 100);
+        if (gameCase.type !== "coins") {
+          return json({
+            ok: false,
+            error: "Этот кейс нельзя открыть за Coins"
+          }, headers, 400);
+        }
+
+        const price = Number(gameCase.price_coins || 0);
+
+        if (price <= 0) {
+          return json({
+            ok: false,
+            error: "У кейса не указана цена"
+          }, headers, 400);
+        }
 
         if (Number(user.coins || 0) < price) {
           return json({
             ok: false,
-            error: "Недостаточно Coins"
+            error: "Недостаточно Coins",
+            required: price,
+            coins: Number(user.coins || 0)
           }, headers, 400);
         }
 
-        const items = await env.DB.prepare(`
-          SELECT
-            case_items.gift_id,
-            case_items.chance,
-            gifts.name,
-            gifts.emoji,
-            gifts.price,
-            gifts.description
-          FROM case_items
-          JOIN gifts
-            ON gifts.id = case_items.gift_id
-          WHERE case_items.case_id = ?
-        `)
-        .bind(caseId)
-        .all();
+        const items = await env.DB
+          .prepare(`
+            SELECT
+              case_items.gift_id,
+              case_items.chance,
+              gifts.name,
+              gifts.emoji,
+              gifts.price,
+              gifts.description
+            FROM case_items
+            JOIN gifts
+              ON gifts.id = case_items.gift_id
+            WHERE case_items.case_id = ?
+          `)
+          .bind(caseId)
+          .all();
 
         if (!items.results.length) {
           return json({
             ok: false,
-            error: "В кейсе нет предметов"
+            error: "В кейсе нет наград"
           }, headers, 400);
         }
 
-        const winner = chooseItem(items.results);
-
-        await env.DB.prepare(`
-          UPDATE users
-          SET coins = coins - ?
-          WHERE id = ?
-        `)
-        .bind(price, userId)
-        .run();
-
-        await env.DB.prepare(`
-          INSERT INTO inventory
-            (user_id, gift_id)
-          VALUES (?, ?)
-        `)
-        .bind(userId, winner.gift_id)
-        .run();
-
-        await env.DB.prepare(`
-          INSERT INTO case_opens
-            (user_id, case_id)
-          VALUES (?, ?)
-        `)
-        .bind(userId, caseId)
-        .run();
-
-        const updated = await env.DB.prepare(`
-          SELECT coins
-          FROM users
-          WHERE id = ?
-        `)
-        .bind(userId)
-        .first();
-
-        return json({
-          ok: true,
-          reward: winner,
-          coins: Number(updated.coins || 0)
-        }, headers);
-      }
-
-      // =========================
-      // TASKS
-      // =========================
-
-      if (url.pathname === "/api/tasks" && request.method === "GET") {
-        const userId = Number(
-          url.searchParams.get("user_id")
+        const totalChance = items.results.reduce(
+          (sum, item) =>
+            sum + Number(item.chance || 0),
+          0
         );
 
-        const result = await env.DB.prepare(`
-          SELECT
-            tasks.id,
-            tasks.title,
-            tasks.description,
-            tasks.type,
-            tasks.url,
-            tasks.reward,
-            tasks.max_completions,
-            CASE
-              WHEN task_completions.id IS NOT NULL
-              THEN 1
-              ELSE 0
-            END AS completed
-          FROM tasks
-          LEFT JOIN task_completions
-            ON task_completions.task_id = tasks.id
-            AND task_completions.user_id = ?
-          WHERE tasks.is_active = 1
-          ORDER BY tasks.id DESC
-        `)
-        .bind(userId)
-        .all();
-
-        return json({
-          ok: true,
-          tasks: result.results
-        }, headers);
-      }
-
-      // =========================
-      // COMPLETE TASK
-      // =========================
-
-      if (
-        url.pathname === "/api/tasks/complete" &&
-        request.method === "POST"
-      ) {
-        const body = await request.json();
-
-        const userId = Number(body.user_id);
-        const taskId = Number(body.task_id);
-
-        const task = await env.DB.prepare(`
-          SELECT
-            id,
-            title,
-            reward,
-            is_active
-          FROM tasks
-          WHERE id = ?
-        `)
-        .bind(taskId)
-        .first();
-
-        if (!task || !task.is_active) {
+        if (totalChance <= 0) {
           return json({
             ok: false,
-            error: "Задание недоступно"
+            error: "Некорректные шансы кейса"
           }, headers, 400);
         }
 
-        const completed = await env.DB.prepare(`
-          SELECT id
-          FROM task_completions
-          WHERE task_id = ?
-            AND user_id = ?
-        `)
-        .bind(taskId, userId)
-        .first();
+        // Случайный выбор на сервере
+        const random =
+          Math.random() * totalChance;
 
-        if (completed) {
-          return json({
-            ok: false,
-            error: "Задание уже выполнено"
-          }, headers, 409);
+        let current = 0;
+        let selected = null;
+
+        for (const item of items.results) {
+          current += Number(item.chance || 0);
+
+          if (random < current) {
+            selected = item;
+            break;
+          }
         }
 
-        const reward = Math.max(
-          0,
-          Number(task.reward || 0)
-        );
+        if (!selected) {
+          selected = items.results[
+            items.results.length - 1
+          ];
+        }
 
-        await env.DB.prepare(`
-          INSERT INTO task_completions
-            (task_id, user_id, reward)
-          VALUES (?, ?, ?)
-        `)
-        .bind(userId, taskId, reward)
-        .run();
+        // Списываем Coins
+        await env.DB
+          .prepare(`
+            UPDATE users
+            SET coins = coins - ?
+            WHERE id = ?
+              AND coins >= ?
+          `)
+          .bind(
+            price,
+            userId,
+            price
+          )
+          .run();
 
-        await env.DB.prepare(`
-          UPDATE users
-          SET coins = COALESCE(coins, 0) + ?
-          WHERE id = ?
-        `)
-        .bind(reward, userId)
-        .run();
+        // Добавляем подарок
+        await env.DB
+          .prepare(`
+            INSERT INTO inventory
+              (user_id, gift_id)
+            VALUES (?, ?)
+          `)
+          .bind(
+            userId,
+            selected.gift_id
+          )
+          .run();
 
-        const user = await env.DB.prepare(`
-          SELECT coins
-          FROM users
-          WHERE id = ?
-        `)
-        .bind(userId)
-        .first();
+        // История открытия
+        await env.DB
+          .prepare(`
+            INSERT INTO case_opens
+              (
+                user_id,
+                case_id,
+                gift_id,
+                price_coins,
+                stars_price
+              )
+            VALUES (?, ?, ?, ?, 0)
+          `)
+          .bind(
+            userId,
+            caseId,
+            selected.gift_id,
+            price
+          )
+          .run();
+
+        const updatedUser = await env.DB
+          .prepare(`
+            SELECT coins
+            FROM users
+            WHERE id = ?
+          `)
+          .bind(userId)
+          .first();
 
         return json({
           ok: true,
-          reward,
-          coins: Number(user.coins || 0)
-        }, headers);
-      }
-
-      // =========================
-      // REFERRALS
-      // =========================
-
-      if (
-        url.pathname === "/api/referrals" &&
-        request.method === "GET"
-      ) {
-        const userId = Number(
-          url.searchParams.get("user_id")
-        );
+          case: {
+            id: gameCase.id,
+            name: gameCase.name
+          },
+          reward: {
+            gift_id: selected.gift_id,
+            name: selected.name,
+            emoji: selected.emoji,
+            price: selected.price,
+            chance: selected.chance
+          },
+          coins: Number(
+            updatedUser?.coins || 0
