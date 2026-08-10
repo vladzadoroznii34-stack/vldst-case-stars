@@ -11,35 +11,13 @@ let currentUser = null;
 let gifts = [];
 let inventory = [];
 
-// -------------------------
-// Telegram
-// -------------------------
-
-function getTelegramUser() {
-  const user = tg?.initDataUnsafe?.user;
-
-  if (user) {
-    return user;
-  }
-
-  // Для проверки сайта вне Telegram
-  return {
-    id: 100000001,
-    username: "test_user",
-    first_name: "Тестовый пользователь"
-  };
-}
-
-// -------------------------
-// API
-// -------------------------
-
 async function api(path, options = {}) {
   const response = await fetch(API + path, {
+    ...options,
     headers: {
-      "Content-Type": "application/json"
-    },
-    ...options
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
   });
 
   const data = await response.json();
@@ -51,29 +29,35 @@ async function api(path, options = {}) {
   return data;
 }
 
-// -------------------------
-// Пользователь
-// -------------------------
+function getTelegramUser() {
+  const user = tg?.initDataUnsafe?.user;
+
+  return user || {
+    id: 100000001,
+    username: "test_user",
+    first_name: "Тестовый пользователь"
+  };
+}
 
 async function loadUser() {
-  const tgUser = getTelegramUser();
+  const user = getTelegramUser();
 
   const data = await api("/user", {
     method: "POST",
     body: JSON.stringify({
-      id: tgUser.id,
-      username: tgUser.username || null,
-      first_name: tgUser.first_name || null
+      id: user.id,
+      username: user.username || null,
+      first_name: user.first_name || null
     })
   });
 
   currentUser = data.user;
 
   document.getElementById("balance").textContent =
-    currentUser.balance ?? 0;
+    currentUser.balance || 0;
 
   document.getElementById("profileBalance").textContent =
-    currentUser.balance ?? 0;
+    currentUser.balance || 0;
 
   document.getElementById("username").textContent =
     currentUser.username
@@ -83,17 +67,11 @@ async function loadUser() {
   document.getElementById("telegramId").textContent =
     "ID: " + currentUser.id;
 
-  const firstLetter =
+  document.getElementById("avatar").textContent =
     (currentUser.first_name || "U").charAt(0).toUpperCase();
-
-  document.getElementById("avatar").textContent = firstLetter;
 
   createReferralLink();
 }
-
-// -------------------------
-// Подарки
-// -------------------------
 
 async function loadGifts() {
   const data = await api("/gifts");
@@ -104,15 +82,11 @@ async function loadGifts() {
   renderPopular();
 }
 
-// -------------------------
-// Инвентарь
-// -------------------------
-
 async function loadInventory() {
   if (!currentUser) return;
 
   const data = await api(
-    "/inventory?user_id=" + encodeURIComponent(currentUser.id)
+    "/inventory?user_id=" + currentUser.id
   );
 
   inventory = data.inventory || [];
@@ -123,19 +97,12 @@ async function loadInventory() {
     inventory.length;
 }
 
-// -------------------------
-// Рендер подарков
-// -------------------------
-
 function renderGifts() {
   const container = document.getElementById("gifts");
 
   if (!gifts.length) {
-    container.innerHTML = `
-      <div class="empty">
-        🎁 Пока нет доступных подарков
-      </div>
-    `;
+    container.innerHTML =
+      '<div class="empty">🎁 Подарков пока нет</div>';
     return;
   }
 
@@ -146,26 +113,23 @@ function renderGifts() {
         ${escapeHtml(gift.emoji || "🎁")}
       </div>
 
-      <div>
-        <div class="gift-name">
-          ${escapeHtml(gift.name)}
-        </div>
+      <div class="gift-name">
+        ${escapeHtml(gift.name)}
+      </div>
 
-        <div class="gift-description">
-          ${escapeHtml(gift.description || "Коллекционный подарок")}
-        </div>
+      <div class="gift-description">
+        ${escapeHtml(gift.description || "")}
       </div>
 
       <div class="gift-bottom">
 
-        <div class="price">
+        <span class="price">
           ⭐ ${Number(gift.price || 0)}
-        </div>
+        </span>
 
         <button
           class="buy"
-          onclick="buyGift(${Number(gift.id)})"
-        >
+          onclick="buyGift(${Number(gift.id)})">
           Купить
         </button>
 
@@ -181,11 +145,8 @@ function renderPopular() {
   const popular = gifts.slice(0, 4);
 
   if (!popular.length) {
-    container.innerHTML = `
-      <div class="empty">
-        Скоро здесь появятся подарки
-      </div>
-    `;
+    container.innerHTML =
+      '<div class="empty">🎁 Скоро здесь появятся подарки</div>';
     return;
   }
 
@@ -201,35 +162,29 @@ function renderPopular() {
       </div>
 
       <div class="gift-bottom">
+
         <span class="price">
           ⭐ ${Number(gift.price || 0)}
         </span>
 
         <button
           class="buy"
-          onclick="showPage('shop')"
-        >
+          onclick="showPage('shop')">
           Открыть
         </button>
+
       </div>
 
     </div>
   `).join("");
 }
 
-// -------------------------
-// Инвентарь
-// -------------------------
-
 function renderInventory() {
   const container = document.getElementById("inventoryList");
 
   if (!inventory.length) {
-    container.innerHTML = `
-      <div class="empty">
-        🎒 Инвентарь пока пуст
-      </div>
-    `;
+    container.innerHTML =
+      '<div class="empty">🎒 Инвентарь пока пуст</div>';
     return;
   }
 
@@ -256,18 +211,115 @@ function renderInventory() {
   `).join("");
 }
 
-// -------------------------
-// Покупка
-// -------------------------
+function showPage(page) {
+  document.querySelectorAll(".page").forEach(element => {
+    element.classList.remove("active");
+  });
 
-async function buyGift(giftId) {
-  if (!currentUser) return;
+  const target = document.getElementById(page);
 
-  // Пока покупки отключены.
-  // На следующем этапе подключим Telegram Stars
-  // через Telegram Payments.
+  if (!target) return;
+
+  target.classList.add("active");
+
+  document.querySelectorAll(".bottom-nav button").forEach(button => {
+    button.classList.remove("active");
+  });
+
+  const button = document.querySelector(
+    `.bottom-nav button[data-page="${page}"]`
+  );
+
+  if (button) {
+    button.classList.add("active");
+  }
+
+  if (page === "inventory") {
+    loadInventory().catch(console.error);
+  }
+}
+
+function buyGift(giftId) {
+  const gift = gifts.find(item => item.id === giftId);
+
+  if (!gift) return;
+
+  const message =
+    `${gift.emoji || "🎁"} ${gift.name}\n\n` +
+    `Цена: ⭐ ${gift.price}\n\n` +
+    `Оплата Stars будет подключена следующим этапом.`;
 
   if (tg?.showPopup) {
     tg.showPopup({
       title: "Покупка",
-      message: "Оплата Stars будет подключена
+      message,
+      buttons: [
+        {
+          type: "ok",
+          text: "Понятно"
+        }
+      ]
+    });
+  } else {
+    alert(message);
+  }
+}
+
+function createReferralLink() {
+  if (!currentUser) return;
+
+  const link =
+    "https://t.me/VldstxCase_bot?start=ref_" +
+    currentUser.id;
+
+  document.getElementById("refLink").textContent = link;
+}
+
+async function copyReferral() {
+  const link =
+    document.getElementById("refLink").textContent;
+
+  try {
+    await navigator.clipboard.writeText(link);
+
+    if (tg?.showPopup) {
+      tg.showPopup({
+        title: "Готово",
+        message: "Ссылка скопирована",
+        buttons: [
+          {
+            type: "ok",
+            text: "OK"
+          }
+        ]
+      });
+    } else {
+      alert("Ссылка скопирована");
+    }
+  } catch {
+    alert(link);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function init() {
+  try {
+    await loadUser();
+    await loadGifts();
+    await loadInventory();
+
+    showPage("home");
+  } catch (error) {
+    console.error("Ошибка запуска:", error);
+  }
+}
+
+init();
