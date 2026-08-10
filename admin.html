@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Админ-панель</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #0b0f14;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .login,
+    .panel {
+      background: #141a22;
+      padding: 20px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+    }
+
+    input,
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 8px;
+      border-radius: 10px;
+      border: 0;
+      font-size: 15px;
+    }
+
+    input {
+      background: #202833;
+      color: white;
+    }
+
+    button {
+      background: #2ea043;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button.red {
+      background: #d73a49;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      background: #202833;
+      padding: 18px;
+      border-radius: 12px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 25px;
+      margin-top: 7px;
+    }
+
+    .user {
+      background: #202833;
+      padding: 15px;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+    .user button {
+      width: auto;
+      padding: 9px 12px;
+      margin-right: 5px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .success {
+      color: #3fb950;
+    }
+
+    .error {
+      color: #f85149;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h1>⚙️ Админ-панель</h1>
+
+  <div id="login" class="login">
+    <h2>🔐 Авторизация</h2>
+
+    <input
+      id="key"
+      type="password"
+      placeholder="ADMIN_KEY"
+    >
+
+    <button onclick="login()">
+      Войти
+    </button>
+
+    <p id="loginMessage"></p>
+  </div>
+
+  <div id="panel" class="hidden">
+
+    <div class="panel">
+
+      <h2>📊 Статистика</h2>
+
+      <div class="stats">
+
+        <div class="stat">
+          👥 Пользователи
+          <b id="users">0</b>
+        </div>
+
+        <div class="stat">
+          💰 Coins
+          <b id="coins">0</b>
+        </div>
+
+        <div class="stat">
+          👥 Рефералы
+          <b id="referrals">0</b>
+        </div>
+
+        <div class="stat">
+          📋 Задания
+          <b id="tasks">0</b>
+        </div>
+
+        <div class="stat">
+          📢 Реклама
+          <b id="ads">0</b>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="panel">
+
+      <h2>👥 Пользователи</h2>
+
+      <input
+        id="search"
+        placeholder="ID / username / имя"
+      >
+
+      <button onclick="loadUsers()">
+        🔍 Найти
+      </button>
+
+      <div id="usersList"></div>
+
+    </div>
+
+    <div class="panel">
+
+      <h2>📢 Создать рекламу</h2>
+
+      <input id="adTitle" placeholder="Заголовок">
+
+      <input id="adText" placeholder="Текст рекламы">
+
+      <input id="adUrl" placeholder="Ссылка">
+
+      <input
+        id="adReward"
+        type="number"
+        placeholder="Награда Coins"
+      >
+
+      <button onclick="createAd()">
+        📢 Создать рекламу
+      </button>
+
+      <div id="adsList"></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+let ADMIN_KEY = sessionStorage.getItem("ADMIN_KEY") || "";
+
+const api = async (path, options = {}) => {
+
+  options.headers = {
+    "Content-Type": "application/json",
+    "X-Admin-Key": ADMIN_KEY,
+    ...(options.headers || {})
+  };
+
+  const response = await fetch(path, options);
+
+  return response.json();
+};
+
+
+async function login() {
+
+  ADMIN_KEY =
+    document.getElementById("key").value.trim();
+
+  const result =
+    await api("/api/admin/stats");
+
+  if (!result.ok) {
+
+    document.getElementById("loginMessage").innerHTML =
+      `<span class="error">❌ Неверный ключ</span>`;
+
+    return;
+  }
+
+  sessionStorage.setItem(
+    "ADMIN_KEY",
+    ADMIN_KEY
+  );
+
+  document
+    .getElementById("login")
+    .classList.add("hidden");
+
+  document
+    .getElementById("panel")
+    .classList.remove("hidden");
+
+  loadAll();
+}
+
+
+async function loadAll() {
+
+  await loadStats();
+  await loadUsers();
+  await loadAds();
+
+}
+
+
+async function loadStats() {
+
+  const result =
+    await api("/api/admin/stats");
+
+  if (!result.ok) return;
+
+  document.getElementById("users").textContent =
+    result.stats.users;
+
+  document.getElementById("coins").textContent =
+    result.stats.coins;
+
+  document.getElementById("referrals").textContent =
+    result.stats.referrals;
+
+  document.getElementById("tasks").textContent =
+    result.stats.tasks;
+
+  document.getElementById("ads").textContent =
+    result.stats.ads;
+
+}
+
+
+async function loadUsers() {
+
+  const search =
+    document.getElementById("search").value;
+
+  const result =
+    await api(
+      "/api/admin/users?search=" +
+      encodeURIComponent(search)
+    );
+
+  if (!result.ok) return;
+
+  const container =
+    document.getElementById("usersList");
+
+  container.innerHTML = "";
+
+  result.users.forEach(user => {
+
+    const div =
+      document.createElement("div");
+
+    div.className = "user";
+
+    div.innerHTML = `
+
+      <b>
+        ${user.first_name || "Без имени"}
+      </b>
+
+      <br>
+
+      ID: ${user.id}
+
+      <br>
+
+      Username:
+      ${user.username ? "@" + user.username : "нет"}
+
+      <br>
+
+      💰 Coins:
+      ${user.coins || 0}
+
+      <br>
+
+      ${
+        user.banned
+        ? "🚫 ЗАБЛОКИРОВАН"
+        : "✅ Активен"
+      }
+
+      <br>
+
+      <button onclick="addCoins(${user.id})">
+        💰 Coins
+      </button>
+
+      ${
+        user.banned
+        ? `<button onclick="unban(${user.id})">
+             ✅ Разблокировать
+           </button>`
+        : `<button class="red"
+             onclick="ban(${user.id})">
+             🚫 Заблокировать
+           </button>`
+      }
+
+    `;
+
+    container.appendChild(div);
+
+  });
+
+}
+
+
+async function addCoins(id) {
+
+  const amount =
+    prompt("Сколько Coins добавить?");
+
+  if (amount === null) return;
+
+  const result =
+    await api(
+      "/api/admin/user/add-coins",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: id,
+          amount: Number(amount)
+        })
+      }
+    );
+
+  alert(
+    result.ok
+      ? "✅ Баланс изменён"
+      : "❌ " + result.error
+  );
+
+  loadAll();
+
+}
+
+
+async function ban(id) {
+
+  if (!confirm("Заблокировать пользователя?"))
+    return;
+
+  await api(
+    "/api/admin/user/ban",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: id
+      })
+    }
+  );
+
+  loadUsers();
+
+}
+
+
+async function unban(id) {
+
+  await api(
+    "/api/admin/user/unban",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: id
+      })
+    }
+  );
+
+  loadUsers();
+
+}
+
+
+async function createAd() {
+
+  const title =
+    document.getElementById("adTitle").value;
+
+  const text =
+    document.getElementById("adText").value;
+
+  const url =
+    document.getElementById("adUrl").value;
+
+  const reward =
+    document.getElementById("adReward").value;
+
+  const result =
+    await api(
+      "/api/admin/ads/create",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          text,
+          url,
+          reward: Number(reward || 0)
+        })
+      }
+    );
+
+  if (!result.ok) {
+
+    alert("❌ " + result.error);
+
+    return;
+  }
+
+  alert("✅ Реклама создана");
+
+  document.getElementById("adTitle").value = "";
+  document.getElementById("adText").value = "";
+  document.getElementById("adUrl").value = "";
+  document.getElementById("adReward").value = "";
+
+  loadAll();
+
+}
+
+
+async function loadAds() {
+
+  const result =
+    await api("/api/admin/ads");
+
+  if (!result.ok) return;
+
+  const container =
+    document.getElementById("adsList");
+
+  container.innerHTML =
+    "<h3>Активные объявления</h3>";
+
+  result.ads.forEach(ad => {
+
+    const div =
+      document.createElement("div");
+
+    div.className = "user";
+
+    div.innerHTML = `
+
+      <b>📢 ${ad.title}</b>
+
+      <br>
+
+      ${ad.text}
+
+      <br>
+
+      💰 Награда: ${ad.reward}
+
+      <br>
+
+      <button
+        class="red"
+        onclick="deleteAd(${ad.id})"
+      >
+        🗑 Удалить
+      </button>
+
+    `;
+
+    container.appendChild(div);
+
+  });
+
+}
+
+
+async function deleteAd(id) {
+
+  if (!confirm("Удалить рекламу?"))
+    return;
+
+  await api(
+    "/api/admin/ads/delete",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        id
+      })
+    }
+  );
+
+  loadAll();
+
+}
+
+
+// Автоматический вход,
+// если ключ уже сохранён.
+
+if (ADMIN_KEY) {
+
+  api("/api/admin/stats")
+    .then(result => {
+
+      if (result.ok) {
+
+        document
+          .getElementById("login")
+          .classList.add("hidden");
+
+        document
+          .getElementById("panel")
+          .classList.remove("hidden");
+
+        loadAll();
+
+      }
+
+    });
+
+}
+
+</script>
+
+</body>
+  </html>
